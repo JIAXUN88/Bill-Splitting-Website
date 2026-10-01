@@ -191,12 +191,12 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#3A342E] tracking-tight mb-1 font-sans">
             午安，{currentUser.name}！
           </h1>
-          <p className="text-xs sm:text-sm text-[#74818E] font-medium font-sans">
+          <p className="text-sm text-[#5C6873] md:text-[#74818E] font-medium font-sans">
             今日也要保持愉悅的心情管理財務 · 財務概覽儀表板
           </p>
         </div>
 
-        <div className="inline-flex items-center self-start sm:self-auto gap-2 px-3 py-1.5 bg-white/80 rounded-full border border-[#C3D3DE]/50 text-xs text-[#74818E] shadow-2xs">
+        <div className="inline-flex items-center self-start sm:self-auto gap-2 px-3 py-1.5 bg-white/80 rounded-full border border-[#C3D3DE]/50 text-sm md:text-xs text-[#5C6873] md:text-[#74818E] shadow-2xs">
           <span className="w-2 h-2 rounded-full bg-[#8FB96C]"></span>
           <span>當前身分：<strong className="text-[#3A342E]">{currentDisplayName}</strong> ({currentUser.role})</span>
         </div>
@@ -210,8 +210,8 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
           <div className="absolute top-0 right-0 w-24 h-24 bg-[#F0883E]/5 rounded-bl-full pointer-events-none" />
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xs font-semibold text-[#74818E] uppercase tracking-wider">個人總支出</h2>
-              <span className="text-[10px] text-[#74818E]/80 font-sans">由 {currentDisplayName} 分攤之累計金額</span>
+              <h2 className="text-sm md:text-xs font-semibold text-[#5C6873] md:text-[#74818E] uppercase tracking-wider">個人總支出</h2>
+              <span className="text-sm md:text-[10px] text-[#5C6873] md:text-[#74818E]/80 font-sans">由 {currentDisplayName} 分攤之累計金額</span>
             </div>
             <Wallet className="text-[#F0883E] w-5 h-5 shrink-0" />
           </div>
@@ -228,8 +228,8 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
         >
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xs font-semibold text-[#74818E] uppercase tracking-wider">總應收金額</h2>
-              <span className="text-[10px] text-[#74818E]/80 font-sans">他人應付款給 {currentDisplayName}</span>
+              <h2 className="text-sm md:text-xs font-semibold text-[#5C6873] md:text-[#74818E] uppercase tracking-wider">總應收金額</h2>
+              <span className="text-sm md:text-[10px] text-[#5C6873] md:text-[#74818E]/80 font-sans">他人應付款給 {currentDisplayName}</span>
             </div>
             <TrendingDown className="text-[#8FB96C] w-5 h-5 shrink-0" />
           </div>
@@ -246,8 +246,8 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
         >
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xs font-semibold text-[#74818E] uppercase tracking-wider">總應付金額</h2>
-              <span className="text-[10px] text-[#74818E]/80 font-sans">{currentDisplayName} 應付款給他人</span>
+              <h2 className="text-sm md:text-xs font-semibold text-[#5C6873] md:text-[#74818E] uppercase tracking-wider">總應付金額</h2>
+              <span className="text-sm md:text-[10px] text-[#5C6873] md:text-[#74818E]/80 font-sans">{currentDisplayName} 應付款給他人</span>
             </div>
             <TrendingUp className="text-[#C1503B] w-5 h-5 shrink-0" />
           </div>
@@ -272,7 +272,7 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
               setDepositGroupName('');
               setIsDepositModalOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#3A342E] bg-[#FAF7EE] hover:bg-[#F2ECE0] active:bg-[#EAE0D0] border border-[#C3D3DE]/80 rounded-lg shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3A342E]/15"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm md:text-xs font-semibold text-[#3A342E] bg-[#FAF7EE] hover:bg-[#F2ECE0] active:bg-[#EAE0D0] border border-[#C3D3DE]/80 rounded-lg shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3A342E]/15"
           >
             <Plus size={14} className="stroke-[2.5px] text-[#3A342E]" />
             <span>存入公積金</span>
@@ -300,12 +300,12 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
                       <h3 className="text-sm font-bold text-[#3A342E] whitespace-nowrap">
                         {grp.name}
                       </h3>
-                      <span className="text-xs text-slate-500 font-normal font-sans shrink-0">({grp.members}人)</span>
+                      <span className="text-sm md:text-xs text-slate-600 md:text-slate-500 font-normal font-sans shrink-0">({grp.members}人)</span>
                     </div>
                   </div>
 
                   {grp.hasReserveFund && (
-                    <div className="text-xs text-slate-600 bg-white px-2.5 py-1 rounded-md font-medium font-sans border border-[#C3D3DE]/40 shrink-0">
+                    <div className="text-sm md:text-xs text-slate-700 md:text-slate-600 bg-white px-2.5 py-1 rounded-md font-medium font-sans border border-[#C3D3DE]/40 shrink-0">
                       公積金 NT${groupFundBalance.toLocaleString()}
                     </div>
                   )}
@@ -315,7 +315,7 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
                 <div className="flex items-end justify-between gap-3 mt-5 pt-1">
                   {/* Left Bottom: Highest visual hierarchy - Core Financial Metric */}
                   <div>
-                    <span className="block text-xs text-slate-500 font-medium font-sans mb-0.5">
+                    <span className="block text-sm md:text-xs text-slate-600 md:text-slate-500 font-medium font-sans mb-0.5">
                       總支出
                     </span>
                     <span className="text-2xl font-bold text-[#3A342E] tracking-tight font-sans">
@@ -349,7 +349,7 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
             <h2 className="text-base font-bold text-[#3A342E] font-sans">最新消費動態</h2>
             <button 
               onClick={() => onNavigate('details')}
-              className="text-xs font-semibold text-[#74818E] hover:underline focus:outline-none cursor-pointer"
+              className="text-sm md:text-xs font-semibold text-[#5C6873] md:text-[#74818E] hover:underline focus:outline-none cursor-pointer"
             >
               查看所有明細
             </button>
@@ -371,19 +371,19 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
                       <CategoryIcon size={15} />
                     </div>
                     <div>
-                      <p className="text-xs sm:text-sm font-semibold text-[#3A342E] group-hover:text-[#74818E] transition-colors">
+                      <p className="text-sm font-semibold text-[#3A342E] group-hover:text-[#74818E] transition-colors">
                         {item.name}
                       </p>
-                      <p className="text-[11px] text-[#74818E] font-medium mt-0.5 font-sans">
+                      <p className="text-sm md:text-[11px] text-[#5C6873] md:text-[#74818E] font-medium mt-0.5 font-sans">
                         {item.date} · {item.payer}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs sm:text-sm font-bold font-sans text-[#3A342E]">
+                    <span className="text-sm font-bold font-sans text-[#3A342E]">
                       NT${item.amount.toLocaleString()}
                     </span>
-                    <div className="text-[10px] text-[#74818E] font-sans">
+                    <div className="text-sm md:text-[10px] text-[#5C6873] md:text-[#74818E] font-sans">
                       {item.groupName}
                     </div>
                   </div>
@@ -397,15 +397,15 @@ export default function DashboardView({ onNavigate, expenses, currentUser }: Das
         <div className="bg-white rounded-xl p-5 sm:p-6 shadow-sm border border-[#C3D3DE]/30 flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <h2 className="text-base font-bold text-[#3A342E] font-sans">消費類別比例</h2>
-            <span className="text-xs text-[#74818E] font-bold uppercase tracking-wider font-sans">本月分析</span>
+            <span className="text-sm md:text-xs text-[#5C6873] md:text-[#74818E] font-bold uppercase tracking-wider font-sans">本月分析</span>
           </div>
 
           <div className="flex-grow flex flex-col justify-center gap-3.5 py-1">
             {categoryRatios.map((cat, cIdx) => (
               <div key={cIdx} className="flex flex-col gap-1.5">
-                <div className="flex justify-between items-center text-xs font-semibold">
+                <div className="flex justify-between items-center text-sm md:text-xs font-semibold">
                   <span className="text-[#3A342E] font-medium">{cat.label}</span>
-                  <span className="text-[#74818E] font-sans">{cat.percent}%</span>
+                  <span className="text-[#5C6873] md:text-[#74818E] font-sans">{cat.percent}%</span>
                 </div>
                 <div className="w-full h-2 bg-[#F7F2E7] rounded-full overflow-hidden">
                   <div 
