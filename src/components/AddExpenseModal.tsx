@@ -149,7 +149,6 @@ export default function AddExpenseModal({
   const [toastType, setToastType] = useState<'success' | 'warning'>('success');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
-  const prevIsOpenRef = useRef(false);
 
   // Check whether the selected group has enabled reserve fund
   const selectedGroupConfig = AVAILABLE_GROUPS.find(g => g.id === group);
@@ -245,26 +244,21 @@ export default function AddExpenseModal({
     }
   };
 
-  // Sync state upon Modal opening (prefill data if editingExpense is present, or reset for new entry)
+  // Sync state upon Modal opening:
+  // - Edit mode: always prefill with editingExpense data
+  // - New mode: preserve existing draft (do NOT reset on reopen)
   useEffect(() => {
-    if (isOpen) {
-      if (editingExpense) {
-        setName(editingExpense.name || '');
-        setAmount(editingExpense.amount ? editingExpense.amount.toString() : '');
-        setDate(editingExpense.date ? editingExpense.date.replace(/\//g, '-') : new Date().toISOString().split('T')[0]);
-        setCategory(mapCategoryToValue(editingExpense.category));
-        setGroup(mapGroupToValue(editingExpense.groupName));
-        const isFund = editingExpense.paymentMethod === 'OFFICIAL_FUND' || editingExpense.payer.includes('公積金');
-        setPaymentMode(isFund ? 'reserve_fund' : 'advance_split');
-        setPayer(mapPayerToValue(editingExpense.payer));
-        setSplitMembers(mapSplitMembersToState(editingExpense.splitMembers));
-        setNotes(editingExpense.notes || '');
-      } else if (!prevIsOpenRef.current) {
-        resetFormToDefault();
-      }
-      prevIsOpenRef.current = true;
-    } else {
-      prevIsOpenRef.current = false;
+    if (isOpen && editingExpense) {
+      setName(editingExpense.name || '');
+      setAmount(editingExpense.amount ? editingExpense.amount.toString() : '');
+      setDate(editingExpense.date ? editingExpense.date.replace(/\//g, '-') : new Date().toISOString().split('T')[0]);
+      setCategory(mapCategoryToValue(editingExpense.category));
+      setGroup(mapGroupToValue(editingExpense.groupName));
+      const isFund = editingExpense.paymentMethod === 'OFFICIAL_FUND' || editingExpense.payer.includes('公積金');
+      setPaymentMode(isFund ? 'reserve_fund' : 'advance_split');
+      setPayer(mapPayerToValue(editingExpense.payer));
+      setSplitMembers(mapSplitMembersToState(editingExpense.splitMembers));
+      setNotes(editingExpense.notes || '');
     }
   }, [isOpen, editingExpense]);
 
@@ -292,11 +286,9 @@ export default function AddExpenseModal({
     }, 200);
   };
 
-  // When clicking Cancel button: explicit discard and close
+  // When clicking Cancel / X / Overlay: close without resetting (preserve draft)
   const handleCancel = () => {
-    handleAnimatedClose(() => {
-      resetFormToDefault();
-    });
+    handleAnimatedClose();
   };
 
   // Guard: if current selected group doesn't have reserve fund, fallback paymentMode to 'advance_split'
@@ -716,13 +708,25 @@ export default function AddExpenseModal({
 
             {/* 僅在公積金支付模式下顯示公積金餘額 */}
             {hasReserveFund && paymentMode === 'reserve_fund' && (
-              <div className="pt-2 border-t border-[#C3D3DE]/40 flex items-center gap-1.5 text-xs font-sans animate-in fade-in duration-150">
-                <span className="text-xs text-slate-500 font-normal">{selectedGroupConfig?.name} 公積金餘額：</span>
-                {isInsufficientFund ? (
-                  <span className="text-xs text-rose-600 font-medium">餘額不足</span>
-                ) : (
-                  <span className="text-xs text-slate-700 font-medium">NT${Math.max(0, projectedFundBalance).toLocaleString()}</span>
-                )}
+              <div className="pt-2 border-t border-[#C3D3DE]/40 flex items-center gap-1.5 text-xs font-sans animate-in fade-in duration-150 min-w-0">
+                <span className="shrink-0 text-xs text-slate-500 font-normal">公積金餘額：</span>
+                <span className="truncate text-xs">
+                  {isInsufficientFund ? (
+                    <>
+                      <span className="font-bold text-slate-800">NT${availablePoolBalance.toLocaleString()}</span>
+                      <span className="text-rose-500 font-medium">（餘額不足）</span>
+                    </>
+                  ) : parsedAmount > 0 ? (
+                    <>
+                      <span className="font-bold text-slate-800">NT${availablePoolBalance.toLocaleString()}</span>
+                      <span className="text-slate-400 font-normal">（扣除後剩 </span>
+                      <span className="font-bold text-slate-800">NT${projectedFundBalance.toLocaleString()}</span>
+                      <span className="text-slate-400 font-normal">）</span>
+                    </>
+                  ) : (
+                    <span className="font-bold text-slate-800">NT${availablePoolBalance.toLocaleString()}</span>
+                  )}
+                </span>
               </div>
             )}
 
