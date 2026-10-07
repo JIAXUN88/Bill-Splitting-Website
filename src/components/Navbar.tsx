@@ -503,20 +503,6 @@ export default function Navbar({
           aria-hidden={!isMobileMenuOpen}
         >
           <div className="px-5 py-4 flex flex-col space-y-1">
-            {/* Quick Record Button */}
-            <button
-              type="button"
-              id="mobile-quick-record-btn"
-              onClick={() => {
-                onQuickRecordClick();
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-3 w-full px-3.5 py-2.5 text-base rounded-xl transition-colors cursor-pointer bg-[#606D7A] text-[#F8FAFC] hover:bg-[#475569] font-medium shadow-2xs mb-2"
-            >
-              <Plus size={20} />
-              <span>快速記帳</span>
-            </button>
-
             {/* Navigation Tab Links */}
             {navItems.map((item) => {
               const Icon = item.icon;

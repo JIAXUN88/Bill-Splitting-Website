@@ -38,7 +38,9 @@ import {
   Smile,
   MoreHorizontal,
   SlidersHorizontal,
-  Search
+  Search,
+  ChevronRight,
+  FolderUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLedger } from '../context/LedgerContext';
@@ -122,7 +124,7 @@ const SETTLEMENT_STATUS_STYLES: Record<string, { label: string; className: strin
   },
   REJECTED: {
     label: '被退回',
-    className: 'bg-rose-50 text-rose-600 border border-rose-200/60',
+    className: 'bg-rose-50 text-rose-500 border border-transparent',
     showClock: false
   },
   UNPAID: {
@@ -400,6 +402,83 @@ export default function SettlementView() {
   const [customRejectInput, setCustomRejectInput] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [reasonModalData, setReasonModalData] = useState<{ mainReason: string; detailReason?: string } | null>(null);
+
+  // Revision Modal for Rejected Item (退款款項修正)
+  const [revisionItem, setRevisionItem] = useState<PayableCardItem | null>(null);
+  const [revisionPaymentMethod, setRevisionPaymentMethod] = useState<'transfer' | 'cash'>('transfer');
+  const [revisionLastFiveDigits, setRevisionLastFiveDigits] = useState('');
+  const [revisionNote, setRevisionNote] = useState('');
+  const [revisionProofImage, setRevisionProofImage] = useState<string | null>(null);
+  const revisionFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenRevision = (item: PayableCardItem) => {
+    setRevisionItem(item);
+    setRevisionPaymentMethod('transfer');
+    setRevisionLastFiveDigits('');
+    setRevisionNote('');
+    setRevisionProofImage(null);
+  };
+
+  const handleRevisionProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('請上傳圖片格式檔案 (JPG, PNG, WEBP 等)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('圖片檔案大小請勿超過 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (typeof event.target?.result === 'string') {
+        setRevisionProofImage(event.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmRevision = () => {
+    if (!revisionItem) return;
+
+    // 尋找關聯的退回單據
+    const rejectedOrder = settlementOrders.find(o =>
+      o.status === 'REJECTED' &&
+      (o.id === revisionItem.orderId ||
+        (o.fromUserId === revisionItem.debtorId &&
+         o.toUserId === revisionItem.creditorId &&
+         o.relatedExpenseIds.includes(revisionItem.expenseId)))
+    );
+
+    const relatedIds = rejectedOrder ? rejectedOrder.relatedExpenseIds : [revisionItem.expenseId];
+    const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
+
+    const noteText = [
+      revisionPaymentMethod === 'transfer' ? `銀行轉帳 (末5碼: ${revisionLastFiveDigits})` : '現金/其他',
+      revisionNote.trim()
+    ].filter(Boolean).join(' - ');
+
+    const res = createSettlement({
+      title: `${currentUser.name} 重新送出 ${relatedIds.length} 筆結清項目`,
+      fromUserId: currentUser.id,
+      toUserId: revisionItem.creditorId,
+      amount: totalAmount,
+      expenseIds: relatedIds,
+      notes: noteText,
+      proofUrl: revisionProofImage || undefined
+    });
+
+    if (res.success) {
+      setRevisionItem(null);
+      showToast(`已重新送出審核！${relatedIds.length} 筆支出已連鎖鎖定。`);
+    } else {
+      showToast(res.error || '重新送出失敗');
+    }
+  };
 
   // 防呆機制：Modal 開啟時禁用 Esc 鍵關閉（避免誤觸丟失資料）
   useEffect(() => {
@@ -695,7 +774,8 @@ export default function SettlementView() {
                        allPayableItems.filter(i => i.status === 'PENDING_APPROVAL').length;
 
   // Payable Selection actions
-  const unlockedPayables = filteredPayables.filter(i => !i.isLocked);
+  // 被退回項目不應出現在批次勾選範圍內，與鎖定項目同等隔離
+  const unlockedPayables = filteredPayables.filter(i => !i.isLocked && i.status !== 'REJECTED');
   const isAllPayablesChecked = unlockedPayables.length > 0 && unlockedPayables.every(i => selectedPayableCardIds[i.id]);
 
   const handleToggleSelectAll = () => {
@@ -1298,7 +1378,7 @@ export default function SettlementView() {
                     🎉 目前沒有任何應付項目，帳目清爽無欠款！
                   </div>
                 ) : (
-                  <div className="mt-3 space-y-2">
+                <div className="mt-3 space-y-2 pb-20">
                     {filteredPayables.map((item) => {
                       const isChecked = !!selectedPayableCardIds[item.id];
                       const isPending = item.status === 'PENDING_APPROVAL';
@@ -1307,18 +1387,66 @@ export default function SettlementView() {
                       return (
                         <div
                           key={item.id}
-                          onClick={() => !item.isLocked && toggleSelectPayable(item.id)}
+                          onClick={() => !item.isLocked && !isRejected && toggleSelectPayable(item.id)}
                           className={`w-full py-3.5 px-4 sm:px-5 rounded-xl border border-slate-100 shadow-none transition-all select-none ${
                             item.isLocked
                               ? 'bg-gray-50/70 border-gray-100 cursor-not-allowed opacity-75'
+                              : isRejected
+                              ? 'bg-transparent border-slate-100'
                               : isChecked
                               ? 'bg-[#C3D3DE]/25 hover:bg-[#C3D3DE]/35 border-[#C3D3DE]/70 cursor-pointer'
-                              : isRejected
-                              ? 'bg-rose-50/20 hover:bg-rose-50/30 border-rose-200/60 hover:border-rose-300 cursor-pointer'
                               : 'bg-white hover:bg-slate-50/80 hover:border-slate-200/80 cursor-pointer'
                           }`}
                         >
-                          {/* Desktop View (≥ 1024px)：完整多欄位排版 */}
+                          {isRejected ? (
+                            /* 被退回項目：統一全斷點採用兩層式排版（無 Checkbox、無雙人頭箭頭、無冗餘警告文字） */
+                            <div className="w-full flex flex-col gap-2">
+                              {/* 第一層 (Top Row)：左側【品名】+ 淡紅【被退回】Badge / 右側【金額】NT$XXX */}
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className="text-sm font-medium text-slate-800 truncate font-sans" title={item.expenseName}>
+                                    {item.expenseName}
+                                  </span>
+                                  <span className="px-2.5 py-0.5 text-xs rounded-full bg-rose-50 text-rose-500 font-medium shrink-0 leading-none">
+                                    被退回
+                                  </span>
+                                </div>
+                                <div className="text-right text-base font-bold font-sans text-slate-800 shrink-0 whitespace-nowrap ml-1">
+                                  NT${item.amount.toLocaleString()}
+                                </div>
+                              </div>
+
+                              {/* 第二層 (Bottom Row)：左側人像 Icon + 對方姓名 · 日期 / 右側 查看與修正 > */}
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <div className="text-xs text-slate-400 font-sans flex items-center gap-1.5 min-w-0 truncate">
+                                  <div className="inline-flex items-center gap-1 shrink-0">
+                                    <div className="w-4 h-4 rounded-full bg-[#8FB96C]/15 text-[#8FB96C] flex items-center justify-center font-bold shrink-0">
+                                      <User size={10} />
+                                    </div>
+                                    <span className="font-medium text-slate-600 truncate max-w-[80px]">
+                                      {getMemberDisplayName(item.creditorId)}
+                                    </span>
+                                  </div>
+                                  <span className="shrink-0 text-slate-300">·</span>
+                                  <span className="shrink-0">{item.date}</span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenRevision(item);
+                                  }}
+                                  className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-0.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap font-medium"
+                                >
+                                  <span>查看與修正</span>
+                                  <ChevronRight size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Desktop View (≥ 1024px)：完整多欄位排版 */}
                           <div className="hidden lg:flex items-center justify-between gap-3 w-full">
                             {/* 左側主體：[Checkbox (w-5)] + [對象區 (w-[124px])] + [日期] + [名稱] + [類別 Badge] */}
                             <div className="flex items-center min-w-0 gap-3 sm:gap-4 shrink-0">
@@ -1386,14 +1514,6 @@ export default function SettlementView() {
                                 </span>
                               </div>
 
-                              {/* [退回原因] */}
-                              {isRejected && (
-                                <SettlementRejectReasonBadge 
-                                  rejectReason={item.rejectReason} 
-                                  variant="desktop" 
-                                  onOpenModal={setReasonModalData} 
-                                />
-                              )}
                             </div>
 
                             {/* [狀態標籤與金額] (靠右) */}
@@ -1407,7 +1527,7 @@ export default function SettlementView() {
                             </div>
                           </div>
 
-                          {/* Phone View (< 640px)：空間優化雙行佈局 (第一行：Checkbox + 項目標題 + 帳款狀態 Tag + 金額 / 第二行：對齊標題起頭，顯示頭像姓名 · 日期 · 群組) */}
+                          {/* Phone View (< 640px)：空間優化雙行佈局 */}
                           <div className="sm:hidden flex items-start gap-2.5 w-full">
                             {/* 勾選框 Checkbox (置於左側，對齊第一行) */}
                             <div className="w-5 shrink-0 flex items-center justify-center mt-0.5">
@@ -1426,9 +1546,9 @@ export default function SettlementView() {
                               )}
                             </div>
 
-                            {/* 卡片主體內容區 (標題起頭與第二行輔助資訊完美垂直對齊) */}
+                            {/* 卡片主體內容區 */}
                             <div className="min-w-0 flex-1 flex flex-col gap-1">
-                              {/* 第一行 (主要資訊)：左側 [項目標題] + [恆定顯示的帳款狀態 Tag] / 右側 NT$ 金額 */}
+                              {/* 第一行 (主要資訊)：左側 [項目標題] + [狀態 Tag] / 右側 NT$ 金額 */}
                               <div className="flex items-center justify-between gap-2 w-full">
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                   <span className="text-sm font-medium text-slate-800 truncate block font-sans" title={item.expenseName}>
@@ -1436,13 +1556,12 @@ export default function SettlementView() {
                                   </span>
                                   <SettlementMicroStatusBadge status={item.status} />
                                 </div>
-
                                 <div className="text-right text-base font-bold font-sans text-slate-800 shrink-0 whitespace-nowrap ml-1">
                                   NT${item.amount.toLocaleString()}
                                 </div>
                               </div>
 
-                              {/* 第二行 (輔助資訊)：左側對齊標題起頭，依序顯示 [👤頭像+姓名] · 日期 · 群組名稱 */}
+                              {/* 第二行 (輔助資訊)：[債權人頭像+姓名] · 日期 · 群組名稱 */}
                               <div className="text-xs text-gray-500 font-sans truncate flex items-center gap-1.5 min-w-0">
                                 <div className="inline-flex items-center gap-1 shrink-0">
                                   <div className="w-4 h-4 rounded-full bg-[#8FB96C]/15 text-[#8FB96C] flex items-center justify-center font-bold shrink-0">
@@ -1456,13 +1575,6 @@ export default function SettlementView() {
                                 <span className="shrink-0">{item.date}</span>
                                 <span className="shrink-0 text-slate-300">·</span>
                                 <span className="truncate">{item.groupName}</span>
-                                {isRejected && (
-                                  <SettlementRejectReasonBadge 
-                                    rejectReason={item.rejectReason} 
-                                    variant="inline" 
-                                    onOpenModal={setReasonModalData} 
-                                  />
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1524,26 +1636,21 @@ export default function SettlementView() {
                                 <span className="shrink-0">{item.date}</span>
                                 <span className="shrink-0">·</span>
                                 <span className="truncate">{item.groupName}</span>
-                                {isRejected && (
-                                  <SettlementRejectReasonBadge 
-                                    rejectReason={item.rejectReason} 
-                                    variant="inline" 
-                                    onOpenModal={setReasonModalData} 
-                                  />
-                                )}
                               </div>
                             </div>
 
-                            {/* 右側 (固定靠右 shrink-0)：金額 + 狀態標籤 (確保永不被擠壓裁切) */}
+                            {/* 右側 (固定靠右 shrink-0)：金額 + 狀態標籤 */}
                             <div className="flex flex-col items-end justify-center shrink-0 gap-1 pl-1">
                               <div className="text-right text-sm sm:text-base font-bold font-sans text-slate-800 shrink-0 whitespace-nowrap">
                                 NT${item.amount.toLocaleString()}
                               </div>
-                              <div className="shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <SettlementStatusBadge status={item.status} isChecked={isChecked} />
                               </div>
                             </div>
                           </div>
+                        </>
+                      )}
                         </div>
                       );
                     })}
@@ -2763,6 +2870,291 @@ export default function SettlementView() {
           </div>
         </div>
       )}
+
+      {/* 專屬退款款項修正 Modal (Revision Modal) */}
+      {revisionItem && (() => {
+        const rejectedOrder = settlementOrders.find(o =>
+          o.status === 'REJECTED' &&
+          (o.id === revisionItem.orderId ||
+            (o.fromUserId === revisionItem.debtorId &&
+             o.toUserId === revisionItem.creditorId &&
+             o.relatedExpenseIds.includes(revisionItem.expenseId)))
+        );
+
+        const relatedExpenseIds = rejectedOrder ? rejectedOrder.relatedExpenseIds : [revisionItem.expenseId];
+        const relatedExpenses = expenses.filter(e => relatedExpenseIds.includes(e.id));
+        const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
+        const parsedReason = parseRejectReason(revisionItem.rejectReason || rejectedOrder?.rejectReason);
+        const reasonSummary = parsedReason.detailReason
+          ? `${parsedReason.mainReason}（${parsedReason.detailReason}）`
+          : parsedReason.mainReason;
+        const rejecterName = getMemberDisplayName(revisionItem.creditorId);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div 
+              className="fixed inset-0 bg-[#3A342E]/50 backdrop-blur-xs" 
+              onClick={() => setRevisionItem(null)} 
+            />
+            <div 
+              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#C3D3DE]/50 z-10 animate-in fade-in zoom-in-95 duration-200 font-sans max-h-[92vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 1. 頂部標題區 (Header) */}
+              <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 bg-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
+                  <h3 className="text-base font-bold text-[#3A342E]">退款款項修正</h3>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setRevisionItem(null)} 
+                  className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer transition-colors rounded-lg hover:bg-slate-100"
+                  title="關閉"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+                {/* 2. 中部診斷與對帳整合卡片 */}
+                <div className="bg-[#FAF7EE]/70 rounded-2xl border border-[#C3D3DE]/40 overflow-hidden shadow-2xs">
+                  {/* 頂部警示區 */}
+                  <div className="bg-rose-50/70 px-3.5 py-2 flex items-center gap-1.5 border-b border-rose-100/60">
+                    <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                    <span className="text-xs font-medium text-rose-700 leading-tight">
+                      審核未通過：{reasonSummary}（{rejecterName} 退回）
+                    </span>
+                  </div>
+
+                  {/* 卡片內文 */}
+                  <div className="p-3.5 space-y-2.5 font-sans">
+                    {/* 還款總額 (唯讀純文字) */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[#74818E] font-medium">還款總額</span>
+                      <span className="text-xl font-bold font-sans text-[#3A342E]">
+                        NT$ {totalAmount.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* 合併還款明細清單 */}
+                    <div className="pt-2 border-t border-[#C3D3DE]/30 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-[#74818E] font-medium">
+                        <span>款項明細清單</span>
+                        <span>共 {relatedExpenseIds.length} 筆</span>
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pr-0.5">
+                        {relatedExpenses.length > 0 ? (
+                          relatedExpenses.map(exp => {
+                            const split = exp.splitMembers.find(m => resolveMemberId(m.memberId, m.name) === revisionItem.debtorId);
+                            const itemAmount = split ? split.amount : exp.amount;
+                            return (
+                              <div key={exp.id} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-white/80 border border-[#C3D3DE]/30">
+                                <span className="truncate max-w-[210px] text-[#3A342E] font-medium" title={exp.name}>
+                                  {exp.name}
+                                </span>
+                                <span className="font-semibold text-slate-700 shrink-0 font-sans">
+                                  NT$ {itemAmount.toLocaleString()}
+                                </span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-white/80 border border-[#C3D3DE]/30">
+                            <span className="truncate max-w-[210px] text-[#3A342E] font-medium">
+                              {revisionItem.expenseName}
+                            </span>
+                            <span className="font-semibold text-slate-700 shrink-0 font-sans">
+                              NT$ {revisionItem.amount.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 底緣提示 */}
+                    <div className="text-[11px] text-[#74818E] pt-1 leading-normal">
+                      ※ 若已私下補足款項，確認總額無誤後直接送出即可。
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. 下部補件與重新送審表單 */}
+                <div className="space-y-3.5 font-sans">
+                  {/* 付款模式 * */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#3A342E]">
+                      付款模式 <span className="text-[#C1503B]">*</span>
+                    </label>
+                    <div className="flex items-center gap-6 text-xs text-[#3A342E]">
+                      <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
+                        <input
+                          type="radio"
+                          name="revisionPaymentMethod"
+                          value="transfer"
+                          checked={revisionPaymentMethod === 'transfer'}
+                          onChange={() => setRevisionPaymentMethod('transfer')}
+                          className="w-4 h-4 accent-[#74818E] cursor-pointer"
+                        />
+                        <span>銀行轉帳</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
+                        <input
+                          type="radio"
+                          name="revisionPaymentMethod"
+                          value="cash"
+                          checked={revisionPaymentMethod === 'cash'}
+                          onChange={() => setRevisionPaymentMethod('cash')}
+                          className="w-4 h-4 accent-[#74818E] cursor-pointer"
+                        />
+                        <span>現金/其他</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 隱藏的檔案上傳 input */}
+                  <input
+                    type="file"
+                    ref={revisionFileInputRef}
+                    accept="image/*"
+                    onChange={handleRevisionProofChange}
+                    className="hidden"
+                  />
+
+                  {/* 選擇「銀行轉帳」時顯示 帳號末五碼 * Input (h-9) + [ FolderUp 上傳憑證 ] 按鈕 */}
+                  {revisionPaymentMethod === 'transfer' ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-7 space-y-1">
+                          <label className="block text-xs font-bold text-[#3A342E]">
+                            帳號末五碼 <span className="text-[#C1503B]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={5}
+                            value={revisionLastFiveDigits}
+                            onChange={(e) => setRevisionLastFiveDigits(e.target.value.replace(/\D/g, ''))}
+                            placeholder="例如：58291"
+                            className="w-full h-9 px-3 bg-white border border-[#C3D3DE] rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-[#74818E]"
+                          />
+                        </div>
+                        <div className="col-span-5">
+                          <button
+                            type="button"
+                            onClick={() => revisionFileInputRef.current?.click()}
+                            className="w-full h-9 px-2.5 rounded-xl border border-dashed border-[#C3D3DE] hover:border-[#74818E] bg-[#FAF7EE]/60 hover:bg-[#FAF7EE] text-xs font-semibold text-[#74818E] hover:text-[#3A342E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                          >
+                            <FolderUp size={14} className="shrink-0" />
+                            <span>{revisionProofImage ? '更換憑證' : '上傳憑證'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 憑證縮圖 / 狀態 */}
+                      {revisionProofImage && (
+                        <div className="rounded-xl border border-[#C3D3DE] bg-slate-50 p-2 flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 shrink-0">
+                              <img
+                                src={revisionProofImage}
+                                alt="付款憑證"
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-slate-700 truncate">已附加憑證截圖</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setRevisionProofImage(null)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                            title="移除憑證"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* 「現金/其他」時隱藏末五碼，僅顯示全寬憑證上傳鈕 */
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => revisionFileInputRef.current?.click()}
+                        className="w-full h-9 px-3 rounded-xl border border-dashed border-[#C3D3DE] hover:border-[#74818E] bg-[#FAF7EE]/60 hover:bg-[#FAF7EE] text-xs font-semibold text-[#74818E] hover:text-[#3A342E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <FolderUp size={14} className="shrink-0" />
+                        <span>{revisionProofImage ? '更換付款憑證 (選填)' : '上傳付款憑證 (選填)'}</span>
+                      </button>
+
+                      {/* 憑證縮圖 / 狀態 */}
+                      {revisionProofImage && (
+                        <div className="rounded-xl border border-[#C3D3DE] bg-slate-50 p-2 flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 shrink-0">
+                              <img
+                                src={revisionProofImage}
+                                alt="付款憑證"
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-slate-700 truncate">已附加憑證截圖</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setRevisionProofImage(null)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                            title="移除憑證"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 備註留言 (選填)：單行 Input (h-9) */}
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-[#3A342E]">備註留言 (選填)</label>
+                    <input
+                      type="text"
+                      value={revisionNote}
+                      onChange={(e) => setRevisionNote(e.target.value)}
+                      placeholder="例如：已補匯不足款項，請查收"
+                      className="w-full h-9 px-3 bg-white border border-[#C3D3DE] rounded-xl text-xs focus:outline-none focus:border-[#74818E]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. 底部動作列 (Footer Strip)：bg-[#F7F2E7] */}
+              <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-[#F7F2E7] border-t border-[#C3D3DE]/30 flex items-center justify-between shrink-0 font-sans">
+                <button
+                  type="button"
+                  onClick={() => setRevisionItem(null)}
+                  className="px-4 py-2 border border-[#C3D3DE] bg-white text-gray-500 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRevision}
+                  disabled={revisionPaymentMethod === 'transfer' && revisionLastFiveDigits.length !== 5}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                    revisionPaymentMethod === 'transfer' && revisionLastFiveDigits.length !== 5
+                      ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
+                      : 'bg-[#606D7A] hover:bg-[#475569] active:bg-[#334155] text-[#F8FAFC] shadow-xs cursor-pointer'
+                  }`}
+                >
+                  重新送出審核
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
