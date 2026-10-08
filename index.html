@@ -19,6 +19,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="survey-container"></div>
+    <script type="text/javascript">
+      function initSurvey() {
+        const finalId = (typeof clarity !== 'undefined' && clarity.version) 
+          ? (clarity("get", "userId") || `not-found-${Date.now()}`) 
+          : `local-${Date.now()}`;
+          
+        const container = document.getElementById('survey-container');
+        if (container) {
+          const ifr = document.createElement('iframe');
+          ifr.src = `https://docs.google.com/forms/d/e/1FAIpQLSeTkMoVyPIz2sGODNV0vfdxxr-LLH5MlusY9yBbI1vopt0cQg/viewform?usp=pp_url&entry.266927383=${finalId}`;
+          ifr.width = "640";
+          ifr.height = "800";
+          ifr.frameBorder = "0";
+          container.appendChild(ifr);
+        }
+      }
+      // 確保網頁與 Clarity 準備就緒後執行
+      window.addEventListener('load', () => setTimeout(initSurvey, 500));
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
