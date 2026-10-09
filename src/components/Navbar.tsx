@@ -570,7 +570,7 @@ export default function Navbar({
       {!isQuickRecordOpen && typeof document !== 'undefined' && createPortal(
         <button
           type="button"
-          id="my-fab"
+          id="quick-record-fab"
           onClick={onQuickRecordClick}
           aria-label="快速記帳"
           className="fixed bottom-6 right-6 z-40 lg:hidden flex items-center justify-center w-14 h-14 rounded-full bg-[#606D7A] hover:bg-[#475569] active:bg-[#334155] text-white shadow-xl active:scale-95 transition-all duration-150 cursor-pointer"
