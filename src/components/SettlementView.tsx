@@ -1387,12 +1387,19 @@ export default function SettlementView() {
                       return (
                         <div
                           key={item.id}
-                          onClick={() => !item.isLocked && !isRejected && toggleSelectPayable(item.id)}
+                          onClick={() => {
+                            if (item.isLocked) return;
+                            if (isRejected) {
+                              handleOpenRevision(item);
+                            } else {
+                              toggleSelectPayable(item.id);
+                            }
+                          }}
                           className={`w-full py-3.5 px-4 sm:px-5 rounded-xl border border-slate-100 shadow-none transition-all select-none ${
                             item.isLocked
                               ? 'bg-gray-50/70 border-gray-100 cursor-not-allowed opacity-75'
                               : isRejected
-                              ? 'bg-transparent border-slate-100'
+                              ? 'bg-transparent border-slate-100 cursor-pointer'
                               : isChecked
                               ? 'bg-[#C3D3DE]/25 hover:bg-[#C3D3DE]/35 border-[#C3D3DE]/70 cursor-pointer'
                               : 'bg-white hover:bg-slate-50/80 hover:border-slate-200/80 cursor-pointer'
@@ -2885,9 +2892,7 @@ export default function SettlementView() {
         const relatedExpenses = expenses.filter(e => relatedExpenseIds.includes(e.id));
         const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
         const parsedReason = parseRejectReason(revisionItem.rejectReason || rejectedOrder?.rejectReason);
-        const reasonSummary = parsedReason.detailReason
-          ? `${parsedReason.mainReason}（${parsedReason.detailReason}）`
-          : parsedReason.mainReason;
+        const reasonSummary = parsedReason.detailReason || parsedReason.mainReason;
         const rejecterName = getMemberDisplayName(revisionItem.creditorId);
 
         return (
@@ -2940,20 +2945,26 @@ export default function SettlementView() {
 
                     {/* 合併還款明細清單 */}
                     <div className="pt-2 border-t border-[#C3D3DE]/30 space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] text-[#74818E] font-medium">
-                        <span>款項明細清單</span>
-                        <span>共 {relatedExpenseIds.length} 筆</span>
+                      <div className="flex items-center justify-between text-xs text-[#74818E] font-medium">
+                        <span>合併還款明細 ({relatedExpenseIds.length} 筆)</span>
+                        <span>收款人：{rejecterName}</span>
                       </div>
                       <div className="max-h-28 overflow-y-auto space-y-1 pr-0.5">
                         {relatedExpenses.length > 0 ? (
                           relatedExpenses.map(exp => {
                             const split = exp.splitMembers.find(m => resolveMemberId(m.memberId, m.name) === revisionItem.debtorId);
                             const itemAmount = split ? split.amount : exp.amount;
+                            const CategoryIcon = getCategoryIcon(exp.category);
                             return (
-                              <div key={exp.id} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-white/80 border border-[#C3D3DE]/30">
-                                <span className="truncate max-w-[210px] text-[#3A342E] font-medium" title={exp.name}>
-                                  {exp.name}
-                                </span>
+                              <div key={exp.id} className="flex items-center justify-between text-xs py-1 px-1 bg-transparent">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="w-5 h-5 rounded-md bg-transparent text-slate-600 flex items-center justify-center shrink-0">
+                                    <CategoryIcon size={13} />
+                                  </span>
+                                  <span className="truncate max-w-[190px] text-[#3A342E] font-medium" title={exp.name}>
+                                    {exp.name}
+                                  </span>
+                                </div>
                                 <span className="font-semibold text-slate-700 shrink-0 font-sans">
                                   NT$ {itemAmount.toLocaleString()}
                                 </span>
@@ -2961,21 +2972,21 @@ export default function SettlementView() {
                             );
                           })
                         ) : (
-                          <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-white/80 border border-[#C3D3DE]/30">
-                            <span className="truncate max-w-[210px] text-[#3A342E] font-medium">
-                              {revisionItem.expenseName}
-                            </span>
+                          <div className="flex items-center justify-between text-xs py-1 px-1 bg-transparent">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-5 h-5 rounded-md bg-transparent text-slate-600 flex items-center justify-center shrink-0">
+                                {React.createElement(getCategoryIcon(revisionItem.category), { size: 13 })}
+                              </span>
+                              <span className="truncate max-w-[190px] text-[#3A342E] font-medium">
+                                {revisionItem.expenseName}
+                              </span>
+                            </div>
                             <span className="font-semibold text-slate-700 shrink-0 font-sans">
                               NT$ {revisionItem.amount.toLocaleString()}
                             </span>
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* 底緣提示 */}
-                    <div className="text-[11px] text-[#74818E] pt-1 leading-normal">
-                      ※ 若已私下補足款項，確認總額無誤後直接送出即可。
                     </div>
                   </div>
                 </div>
@@ -2989,25 +3000,43 @@ export default function SettlementView() {
                     </label>
                     <div className="flex items-center gap-6 text-xs text-[#3A342E]">
                       <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
-                        <input
-                          type="radio"
-                          name="revisionPaymentMethod"
-                          value="transfer"
-                          checked={revisionPaymentMethod === 'transfer'}
-                          onChange={() => setRevisionPaymentMethod('transfer')}
-                          className="w-4 h-4 accent-[#74818E] cursor-pointer"
-                        />
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="radio"
+                            name="revisionPaymentMethod"
+                            value="transfer"
+                            checked={revisionPaymentMethod === 'transfer'}
+                            onChange={() => setRevisionPaymentMethod('transfer')}
+                            className="sr-only"
+                          />
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                            revisionPaymentMethod === 'transfer' ? 'border-[#3A342E]' : 'border-slate-300'
+                          }`}>
+                            {revisionPaymentMethod === 'transfer' && (
+                              <div className="w-2 h-2 rounded-full bg-[#3A342E]" />
+                            )}
+                          </div>
+                        </div>
                         <span>銀行轉帳</span>
                       </label>
                       <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
-                        <input
-                          type="radio"
-                          name="revisionPaymentMethod"
-                          value="cash"
-                          checked={revisionPaymentMethod === 'cash'}
-                          onChange={() => setRevisionPaymentMethod('cash')}
-                          className="w-4 h-4 accent-[#74818E] cursor-pointer"
-                        />
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="radio"
+                            name="revisionPaymentMethod"
+                            value="cash"
+                            checked={revisionPaymentMethod === 'cash'}
+                            onChange={() => setRevisionPaymentMethod('cash')}
+                            className="sr-only"
+                          />
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                            revisionPaymentMethod === 'cash' ? 'border-[#3A342E]' : 'border-slate-300'
+                          }`}>
+                            {revisionPaymentMethod === 'cash' && (
+                              <div className="w-2 h-2 rounded-full bg-[#3A342E]" />
+                            )}
+                          </div>
+                        </div>
                         <span>現金/其他</span>
                       </label>
                     </div>
@@ -3085,7 +3114,7 @@ export default function SettlementView() {
                         className="w-full h-9 px-3 rounded-xl border border-dashed border-[#C3D3DE] hover:border-[#74818E] bg-[#FAF7EE]/60 hover:bg-[#FAF7EE] text-xs font-semibold text-[#74818E] hover:text-[#3A342E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <FolderUp size={14} className="shrink-0" />
-                        <span>{revisionProofImage ? '更換付款憑證 (選填)' : '上傳付款憑證 (選填)'}</span>
+                        <span>{revisionProofImage ? '更換憑證 (選填)' : '上傳憑證 (選填)'}</span>
                       </button>
 
                       {/* 憑證縮圖 / 狀態 */}
@@ -3122,7 +3151,7 @@ export default function SettlementView() {
                       type="text"
                       value={revisionNote}
                       onChange={(e) => setRevisionNote(e.target.value)}
-                      placeholder="例如：已補匯不足款項，請查收"
+                      placeholder="例如：已私下 Line Pay 補足 $50 差額"
                       className="w-full h-9 px-3 bg-white border border-[#C3D3DE] rounded-xl text-xs focus:outline-none focus:border-[#74818E]"
                     />
                   </div>
@@ -3130,7 +3159,7 @@ export default function SettlementView() {
               </div>
 
               {/* 4. 底部動作列 (Footer Strip)：bg-[#F7F2E7] */}
-              <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-[#F7F2E7] border-t border-[#C3D3DE]/30 flex items-center justify-between shrink-0 font-sans">
+              <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-[#F7F2E7] border-t border-[#C3D3DE]/30 flex items-center justify-end gap-3 shrink-0 font-sans">
                 <button
                   type="button"
                   onClick={() => setRevisionItem(null)}

@@ -39,6 +39,26 @@
       // 確保網頁與 Clarity 準備就緒後執行
       window.addEventListener('load', () => setTimeout(initSurvey, 500));
     </script>
+    <script type="text/javascript">
+      // 請確保您的 FAB 按鈕帶有 id="my-fab" 
+      window.addEventListener('scroll', () => {
+        const fabButton = document.getElementById('my-fab');
+        const googleSurvey = document.getElementById('survey-container');
+        
+        if (fabButton && googleSurvey) {
+          const surveyTop = googleSurvey.getBoundingClientRect().top;
+          const windowHeight = window.innerHeight;
+          
+          // 當 Google 表單頂端進入螢幕視野時，直接將按鈕隱藏 (none)
+          if (surveyTop <= windowHeight - 100) { 
+            fabButton.style.display = 'none';
+          } else {
+            // 滾動回網頁上方時，重新顯示按鈕
+            fabButton.style.display = fabButton.classList.contains('flex') ? 'flex' : 'block';
+          }
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
