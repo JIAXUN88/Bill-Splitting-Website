@@ -19,45 +19,30 @@
   </head>
   <body>
     <div id="root"></div>
-    <div id="survey-container"></div>
+    <div style="text-align: center; margin: 50px 0 30px 0; clear: both;">
+      <p style="font-size: 16px; margin-bottom: 14px; color: #333; font-weight: 500;">產品體驗已結束？歡迎填寫測試問卷：</p>
+      <a id="survey-link" href="#" target="_blank" style="display: inline-block; padding: 12px 28px; background-color: #1a73e8; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.15);">填寫體驗問卷</a>
+    </div>
     <script type="text/javascript">
-      function initSurvey() {
+      function initSurveyLink() {
         const finalId = (typeof clarity !== 'undefined' && clarity.version) 
           ? (clarity("get", "userId") || `not-found-${Date.now()}`) 
           : `local-${Date.now()}`;
           
-        const container = document.getElementById('survey-container');
-        if (container) {
-          const ifr = document.createElement('iframe');
-          ifr.src = `https://docs.google.com/forms/d/e/1FAIpQLSeTkMoVyPIz2sGODNV0vfdxxr-LLH5MlusY9yBbI1vopt0cQg/viewform?usp=pp_url&entry.266927383=${finalId}`;
-          ifr.width = "640";
-          ifr.height = "800";
-          ifr.frameBorder = "0";
-          container.appendChild(ifr);
+        const linkEl = document.getElementById('survey-link');
+        if (linkEl) {
+          linkEl.href = `https://docs.google.com/forms/d/e/1FAIpQLSeTkMoVyPIz2sGODNV0vfdxxr-LLH5MlusY9yBbI1vopt0cQg/viewform?usp=pp_url&entry.266927383=${finalId}`;
         }
       }
-      // 確保網頁與 Clarity 準備就緒後執行
-      window.addEventListener('load', () => setTimeout(initSurvey, 500));
-    </script>
-    <script type="text/javascript">
-      // 請確保您的 FAB 按鈕帶有 id="my-fab" 
-      window.addEventListener('scroll', () => {
-        const fabButton = document.getElementById('my-fab');
-        const googleSurvey = document.getElementById('survey-container');
-        
-        if (fabButton && googleSurvey) {
-          const surveyTop = googleSurvey.getBoundingClientRect().top;
-          const windowHeight = window.innerHeight;
-          
-          // 當 Google 表單頂端進入螢幕視野時，直接將按鈕隱藏 (none)
-          if (surveyTop <= windowHeight - 100) { 
-            fabButton.style.display = 'none';
-          } else {
-            // 滾動回網頁上方時，重新顯示按鈕
-            fabButton.style.display = fabButton.classList.contains('flex') ? 'flex' : 'block';
+      window.addEventListener('load', () => setTimeout(initSurveyLink, 500));
+      if (typeof clarity === 'function') {
+        clarity("get", "userId", (id) => {
+          const linkEl = document.getElementById('survey-link');
+          if (linkEl && id) {
+            linkEl.href = `https://docs.google.com/forms/d/e/1FAIpQLSeTkMoVyPIz2sGODNV0vfdxxr-LLH5MlusY9yBbI1vopt0cQg/viewform?usp=pp_url&entry.266927383=${id}`;
           }
-        }
-      });
+        });
+      }
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
