@@ -440,7 +440,7 @@ export default function AddExpenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden" style={{ height: '100vh', position: 'fixed' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden" style={{ contain: 'layout size', position: 'fixed' }}>
       {/* Backdrop - Clickable to dismiss modal */}
       <div 
         onClick={() => handleAnimatedClose()}
@@ -476,7 +476,7 @@ export default function AddExpenseModal({
       </div>
 
       {/* Modal Card - Bottom Sheet on Mobile (<640px: rounded-t-2xl max-h-[90vh] h-auto, slide up/down), Dialog on Desktop (sm:rounded-2xl sm:max-h-[calc(100vh-32px)], scale/fade) */}
-      <div className={`relative bg-white w-full sm:max-w-[560px] max-h-[90vh] h-auto sm:max-h-[calc(100vh-32px)] rounded-t-2xl sm:rounded-2xl shadow-2xl border-t sm:border border-[#C3D3DE]/50 flex flex-col overflow-hidden z-10 transition-transform duration-200 ease-out sm:transition-all sm:duration-150 ${
+      <div style={{ height: 'fit-content', maxHeight: '100%' }} className={`relative bg-white w-full sm:max-w-[560px] max-h-[90vh] h-auto sm:max-h-[calc(100vh-32px)] rounded-t-2xl sm:rounded-2xl shadow-2xl border-t sm:border border-[#C3D3DE]/50 flex flex-col overflow-hidden z-10 transition-transform duration-200 ease-out sm:transition-all sm:duration-150 ${
         isMountedAnimation 
           ? 'translate-y-0 sm:opacity-100 sm:scale-100' 
           : 'translate-y-full sm:translate-y-0 sm:opacity-0 sm:scale-95'
