@@ -2817,9 +2817,24 @@ export default function SettlementView() {
                     type="button"
                     disabled={!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))}
                     onClick={() => {
-                      const finalReason = selectedRejectReason === '其他' 
-                        ? (customRejectInput.trim() ? `其他（${customRejectInput.trim()}）` : '其他') 
-                        : (customRejectInput.trim() ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${customRejectInput.trim()}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
+                      // 確保當選擇「金額不符」時，將實際輸入的金額與差額精準包裝進字串內
+                      let diffLabel = '';
+                      if (selectedRejectReason === '金額' || selectedRejectReason === '金額不符') {
+                        const actualNum = parseFloat(auditActualReceived);
+                        const diffVal = auditModalOrder.amount - actualNum;
+                        if (!isNaN(diffVal) && diffVal !== 0) {
+                          diffLabel = diffVal > 0 ? `少收 $${diffVal.toLocaleString()}` : `溢收 $${Math.abs(diffVal).toLocaleString()}`;
+                        }
+                      }
+
+                      const combinedDetail = [
+                        diffLabel,
+                        customRejectInput.trim()
+                      ].filter(Boolean).join('，');
+
+                      const finalReason = selectedRejectReason === '其他'
+                        ? (combinedDetail ? `其他（${combinedDetail}）` : '其他')
+                        : (combinedDetail ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${combinedDetail}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
                       
                       const res = rejectSettlement(auditModalOrder.id, finalReason);
                       if (res.success) {
@@ -2943,170 +2958,108 @@ export default function SettlementView() {
       )}
 
       {/* 專屬退款款項修正 Modal (Revision Modal) */}
-      {revisionItem && (() => {
-        const rejectedOrder = settlementOrders.find(o =>
-          o.status === 'REJECTED' &&
-          (o.id === revisionItem.orderId ||
-            (o.fromUserId === revisionItem.debtorId &&
-             o.toUserId === revisionItem.creditorId &&
-             o.relatedExpenseIds.includes(revisionItem.expenseId)))
-        );
+        {revisionItem && (() => {
+          const rejectedOrder = settlementOrders.find(o =>
+            o.status === 'REJECTED' &&
+            (o.id === revisionItem.orderId ||
+              (o.fromUserId === revisionItem.debtorId &&
+              o.toUserId === revisionItem.creditorId &&
+              o.relatedExpenseIds.includes(revisionItem.expenseId)))
+          );
 
-        const relatedExpenseIds = rejectedOrder ? rejectedOrder.relatedExpenseIds : [revisionItem.expenseId];
-        const relatedExpenses = expenses.filter(e => relatedExpenseIds.includes(e.id));
-        const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
-        const parsedReason = parseRejectReason(revisionItem.rejectReason || rejectedOrder?.rejectReason);
-        const reasonSummary = parsedReason.detailReason || parsedReason.mainReason;
-        const rejecterName = getMemberDisplayName(revisionItem.creditorId);
+          const relatedExpenseIds = rejectedOrder ? rejectedOrder.relatedExpenseIds : [revisionItem.expenseId];
+          const relatedExpenses = expenses.filter(e => relatedExpenseIds.includes(e.id));
+          const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
+  
+          // 取得完整的退回原因字串
+          const rawReasonStr = revisionItem.rejectReason || rejectedOrder?.rejectReason || '';
 
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div 
-              className="fixed inset-0 bg-[#3A342E]/50 backdrop-blur-xs" 
-              onClick={() => setRevisionItem(null)} 
-            />
-            <div 
-              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#C3D3DE]/50 z-10 animate-in fade-in zoom-in-95 duration-200 font-sans max-h-[92vh] flex flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* 1. 頂部標題區 (Header) */}
-              <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 bg-white flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
-                  <h3 className="text-base font-bold text-[#3A342E]">重新還款申請</h3>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setRevisionItem(null)} 
-                  className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer transition-colors rounded-lg hover:bg-slate-100"
-                  title="關閉"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+          // 從退回原因文字中解析出少收或溢收的金額 (例如：「金額不符（少收 $40）」)
+          let parsedDiff = 0;
+          const shortMatch = rawReasonStr.match(/少收\s*\$(\d+)/);
+          const overMatch = rawReasonStr.match(/溢收\s*\$(\d+)/);
+
+          if (shortMatch) {
+            parsedDiff = parseInt(shortMatch[1], 10);
+          } else if (overMatch) {
+            parsedDiff = -parseInt(overMatch[1], 10);
+          }
+
+          // 動態計算實際收到金額與還差金額
+          const diffAmount = Math.abs(parsedDiff);
+          const actualPaid = rawReasonStr.includes('溢收') ? totalAmount + diffAmount : totalAmount - parsedDiff;
+
+          const parsedReason = parseRejectReason(revisionItem.rejectReason || rejectedOrder?.rejectReason);
+          const reasonSummary = parsedReason.detailReason || parsedReason.mainReason;
+          const rejecterName = getMemberDisplayName(revisionItem.creditorId);
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              {/* 遮罩 Backdrop */}
+              <div 
+                className="fixed inset-0 bg-[#3A342E]/50 backdrop-blur-xs cursor-pointer" 
+                onClick={() => setRevisionItem(null)} 
+              />
+              
+              {/* Modal 容器 */}
+              <div 
+                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#C3D3DE]/50 z-10 animate-in fade-in zoom-in-95 duration-200 font-sans max-h-[92vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+              {/* 1. 頂部標題區 */}
+        <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
+            <h3 className="text-base text-slate-800 font-semibold tracking-tight font-sans">
+              重新還款申請
+            </h3>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setRevisionItem(null)} 
+            className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[#74818E] hover:bg-[#F7F2E7] hover:text-[#3A342E] transition-colors cursor-pointer"
+          >
+            <X size={18} strokeWidth={1.75} />
+          </button>
+        </div>
 
               {/* Modal Scrollable Body */}
-              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
-                {/* 2. 中部診斷與對帳整合卡片 */}
-                <div className="bg-[#FAF7EE]/70 rounded-2xl border border-[#C3D3DE]/40 overflow-hidden shadow-2xs">
-                  {/* 頂部警示區 */}
-                  <div className="bg-rose-50/70 px-3.5 py-2 flex items-center gap-1.5 border-b border-rose-100/60">
-                    <AlertCircle size={15} className="text-rose-600 shrink-0" />
-                    <span className="text-xs font-medium text-rose-700 leading-tight">
-                      審核未通過：{reasonSummary}（{rejecterName} 退回）
-                    </span>
-                  </div>
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
 
-                  {/* 卡片內文 */}
-                  <div className="p-3.5 space-y-2.5 font-sans">
-                    {/* 還款總額 (唯讀純文字) */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#74818E] font-medium">還款總額</span>
-                      <span className="text-xl font-bold font-sans text-[#3A342E]">
-                        NT$ {totalAmount.toLocaleString()}
-                      </span>
-                    </div>
-
-                    {/* 合併還款明細清單 */}
-                    <div className="pt-2 border-t border-[#C3D3DE]/30 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs text-[#74818E] font-medium">
-                        <span>合併還款明細 ({relatedExpenseIds.length} 筆)</span>
-                        <span>收款人：{rejecterName}</span>
-                      </div>
-                      <div className="max-h-28 overflow-y-auto space-y-1 pr-0.5">
-                        {relatedExpenses.length > 0 ? (
-                          relatedExpenses.map(exp => {
-                            const split = exp.splitMembers.find(m => resolveMemberId(m.memberId, m.name) === revisionItem.debtorId);
-                            const itemAmount = split ? split.amount : exp.amount;
-                            const CategoryIcon = getCategoryIcon(exp.category);
-                            return (
-                              <div key={exp.id} className="flex items-center justify-between text-xs py-1 px-1 bg-transparent">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="w-5 h-5 rounded-md bg-transparent text-slate-600 flex items-center justify-center shrink-0">
-                                    <CategoryIcon size={13} />
-                                  </span>
-                                  <span className="truncate max-w-[190px] text-[#3A342E] font-medium" title={exp.name}>
-                                    {exp.name}
-                                  </span>
-                                </div>
-                                <span className="font-semibold text-slate-700 shrink-0 font-sans">
-                                  NT$ {itemAmount.toLocaleString()}
-                                </span>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="flex items-center justify-between text-xs py-1 px-1 bg-transparent">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-5 h-5 rounded-md bg-transparent text-slate-600 flex items-center justify-center shrink-0">
-                                {React.createElement(getCategoryIcon(revisionItem.category), { size: 13 })}
-                              </span>
-                              <span className="truncate max-w-[190px] text-[#3A342E] font-medium">
-                                {revisionItem.expenseName}
-                              </span>
-                            </div>
-                            <span className="font-semibold text-slate-700 shrink-0 font-sans">
-                              NT$ {revisionItem.amount.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+              {/* 2. 退回原因警示框 */}
+              <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
+                <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                  收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，實收 ${actualPaid.toLocaleString()}
                 </div>
-
-                {/* 3. 下部補件與重新送審表單 */}
-                <div className="space-y-3.5 font-sans">
-                  {/* 付款模式 * */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-[#3A342E]">
-                      付款模式 <span className="text-[#C1503B]">*</span>
-                    </label>
-                    <div className="flex items-center gap-6 text-xs text-[#3A342E]">
-                      <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
-                        <div className="relative flex items-center justify-center">
-                          <input
-                            type="radio"
-                            name="revisionPaymentMethod"
-                            value="transfer"
-                            checked={revisionPaymentMethod === 'transfer'}
-                            onChange={() => setRevisionPaymentMethod('transfer')}
-                            className="sr-only"
-                          />
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                            revisionPaymentMethod === 'transfer' ? 'border-[#3A342E]' : 'border-slate-300'
-                          }`}>
-                            {revisionPaymentMethod === 'transfer' && (
-                              <div className="w-2 h-2 rounded-full bg-[#3A342E]" />
-                            )}
-                          </div>
-                        </div>
-                        <span>銀行轉帳</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer font-medium select-none">
-                        <div className="relative flex items-center justify-center">
-                          <input
-                            type="radio"
-                            name="revisionPaymentMethod"
-                            value="cash"
-                            checked={revisionPaymentMethod === 'cash'}
-                            onChange={() => setRevisionPaymentMethod('cash')}
-                            className="sr-only"
-                          />
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                            revisionPaymentMethod === 'cash' ? 'border-[#3A342E]' : 'border-slate-300'
-                          }`}>
-                            {revisionPaymentMethod === 'cash' && (
-                              <div className="w-2 h-2 rounded-full bg-[#3A342E]" />
-                            )}
-                          </div>
-                        </div>
-                        <span>現金/其他</span>
-                      </label>
-                    </div>
+                <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
+                  還差 ${diffAmount.toLocaleString()}
+                </div>
+                {reasonSummary && (
+                  <div className="text-xs text-rose-800/80">
+                    退回原因：「{reasonSummary}」
                   </div>
+                )}
+              </div>
+              
+              {/* 3. 補款說明 (選填) */}
+                <div className="space-y-1.5">
+                <label className="block text-xs sm:text-sm font-medium text-slate-800">
+                  補款說明 (選填)
+                </label>
+                <input
+                  type="text"
+                  value={revisionNote}
+                  onChange={(e) => setRevisionNote(e.target.value)}
+                  placeholder="例如：已私下 Line Pay 補足少給的差額"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 focus:border-[#475569] rounded-xl text-xs sm:text-sm font-normal text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none transition-colors"
+                />
+              </div>
 
-                  {/* 隱藏的檔案上傳 input */}
+              {/* 4. 上傳憑證 (選填) */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-800">
+                    上傳憑證 (選填)
+                  </label>
                   <input
                     type="file"
                     ref={revisionFileInputRef}
@@ -3114,135 +3067,59 @@ export default function SettlementView() {
                     onChange={handleRevisionProofChange}
                     className="hidden"
                   />
-
-                  {/* 選擇「銀行轉帳」時顯示 帳號末五碼 * Input (h-9) + [ FolderUp 上傳憑證 ] 按鈕 */}
-                  {revisionPaymentMethod === 'transfer' ? (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-12 gap-2 items-end">
-                        <div className="col-span-7 space-y-1">
-                          <label className="block text-xs font-bold text-[#3A342E]">
-                            帳號末五碼 <span className="text-[#C1503B]">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            maxLength={5}
-                            value={revisionLastFiveDigits}
-                            onChange={(e) => setRevisionLastFiveDigits(e.target.value.replace(/\D/g, ''))}
-                            placeholder="例如：58291"
-                            className="w-full h-9 px-3 bg-white border border-[#C3D3DE] rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-[#74818E]"
-                          />
-                        </div>
-                        <div className="col-span-5">
-                          <button
-                            type="button"
-                            onClick={() => revisionFileInputRef.current?.click()}
-                            className="w-full h-9 px-2.5 rounded-xl border border-dashed border-[#C3D3DE] hover:border-[#74818E] bg-[#FAF7EE]/60 hover:bg-[#FAF7EE] text-xs font-semibold text-[#74818E] hover:text-[#3A342E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                          >
-                            <FolderUp size={14} className="shrink-0" />
-                            <span>{revisionProofImage ? '更換憑證' : '上傳憑證'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 憑證縮圖 / 狀態 */}
-                      {revisionProofImage && (
-                        <div className="rounded-xl border border-[#C3D3DE] bg-slate-50 p-2 flex items-center justify-between gap-2 animate-in fade-in duration-150">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 shrink-0">
-                              <img
-                                src={revisionProofImage}
-                                alt="付款憑證"
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-                            <span className="text-xs font-medium text-slate-700 truncate">已附加憑證截圖</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setRevisionProofImage(null)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
-                            title="移除憑證"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* 「現金/其他」時隱藏末五碼，僅顯示全寬憑證上傳鈕 */
-                    <div className="space-y-2">
+                  <div>
+                    {!revisionProofImage ? (
                       <button
                         type="button"
                         onClick={() => revisionFileInputRef.current?.click()}
-                        className="w-full h-9 px-3 rounded-xl border border-dashed border-[#C3D3DE] hover:border-[#74818E] bg-[#FAF7EE]/60 hover:bg-[#FAF7EE] text-xs font-semibold text-[#74818E] hover:text-[#3A342E] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
                       >
-                        <FolderUp size={14} className="shrink-0" />
-                        <span>{revisionProofImage ? '更換憑證 (選填)' : '上傳憑證 (選填)'}</span>
+                        <FolderUp size={14} strokeWidth={1.75} className="text-slate-500 shrink-0" />
+                        <span>選擇檔案</span>
                       </button>
-
-                      {/* 憑證縮圖 / 狀態 */}
-                      {revisionProofImage && (
-                        <div className="rounded-xl border border-[#C3D3DE] bg-slate-50 p-2 flex items-center justify-between gap-2 animate-in fade-in duration-150">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 shrink-0">
-                              <img
-                                src={revisionProofImage}
-                                alt="付款憑證"
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-                            <span className="text-xs font-medium text-slate-700 truncate">已附加憑證截圖</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setRevisionProofImage(null)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
-                            title="移除憑證"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 備註留言 (選填)：單行 Input (h-9) */}
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-[#3A342E]">備註留言 (選填)</label>
-                    <input
-                      type="text"
-                      value={revisionNote}
-                      onChange={(e) => setRevisionNote(e.target.value)}
-                      placeholder="例如：已私下 Line Pay 補足 $50 差額"
-                      className="w-full h-9 px-3 bg-white border border-[#C3D3DE] rounded-xl text-xs focus:outline-none focus:border-[#74818E]"
-                    />
+                    ) : (
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-700">
+                        <FolderUp size={14} strokeWidth={1.75} className="text-slate-500 shrink-0" />
+                        <span className="font-medium truncate max-w-[180px]">
+                          已選擇檔案
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => revisionFileInputRef.current?.click()}
+                          className="text-slate-600 hover:text-slate-900 underline cursor-pointer ml-1"
+                        >
+                          更換
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRevisionProofImage(null)}
+                          className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* 4. 底部動作列 (Footer Strip)：bg-[#F7F2E7] */}
-              <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-[#F7F2E7] border-t border-[#C3D3DE]/30 flex items-center justify-end gap-3 shrink-0 font-sans">
-                <button
-                  type="button"
-                  onClick={() => setRevisionItem(null)}
-                  className="px-4 py-2 border border-[#C3D3DE] bg-white text-gray-500 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmRevision}
-                  disabled={revisionPaymentMethod === 'transfer' && revisionLastFiveDigits.length !== 5}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                    revisionPaymentMethod === 'transfer' && revisionLastFiveDigits.length !== 5
-                      ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
-                      : 'bg-[#606D7A] hover:bg-[#475569] active:bg-[#334155] text-[#F8FAFC] shadow-xs cursor-pointer'
-                  }`}
-                >
-                  重新送出審核
-                </button>
+                {/* 5. 底部 Action Buttons (取消 / 重新送出) */}
+                  <div className="px-4 py-3 sm:px-6 border-t border-gray-100 bg-white flex items-center justify-end gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setRevisionItem(null)}
+                      className="px-4 py-2 rounded-lg border border-gray-200 text-slate-600 font-semibold text-xs sm:text-sm bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmRevision}
+                      style={{ backgroundColor: '#475569' }}
+                      className="text-white font-semibold rounded-lg px-5 py-2 text-xs sm:text-sm transition-opacity hover:opacity-90 active:opacity-80 cursor-pointer shadow-xs"
+                    >
+                      重新送出
+                    </button>
+                  </div>                
               </div>
             </div>
           </div>
