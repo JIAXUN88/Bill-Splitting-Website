@@ -2815,26 +2815,11 @@ export default function SettlementView() {
                   </button>
                   <button
                     type="button"
-                    disabled={!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))}
+                    disabled={selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))}
                     onClick={() => {
-                      // 確保當選擇「金額不符」時，將實際輸入的金額與差額精準包裝進字串內
-                      let diffLabel = '';
-                      if (selectedRejectReason === '金額' || selectedRejectReason === '金額不符') {
-                        const actualNum = parseFloat(auditActualReceived);
-                        const diffVal = auditModalOrder.amount - actualNum;
-                        if (!isNaN(diffVal) && diffVal !== 0) {
-                          diffLabel = diffVal > 0 ? `少收 $${diffVal.toLocaleString()}` : `溢收 $${Math.abs(diffVal).toLocaleString()}`;
-                        }
-                      }
-
-                      const combinedDetail = [
-                        diffLabel,
-                        customRejectInput.trim()
-                      ].filter(Boolean).join('，');
-
-                      const finalReason = selectedRejectReason === '其他'
-                        ? (combinedDetail ? `其他（${combinedDetail}）` : '其他')
-                        : (combinedDetail ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${combinedDetail}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
+                      const finalReason = selectedRejectReason === '其他' 
+                        ? (customRejectInput.trim() ? `其他（${customRejectInput.trim()}）` : 'other' === 'other' ? '其他' : '其他') 
+                        : (customRejectInput.trim() ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${customRejectInput.trim()}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
                       
                       const res = rejectSettlement(auditModalOrder.id, finalReason);
                       if (res.success) {
@@ -2849,9 +2834,9 @@ export default function SettlementView() {
                         showToast(res.error || '退回操作失敗');
                       }
                     }}
-                    style={{ backgroundColor: (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))) ? undefined : '#475569' }}
+                    style={{ backgroundColor: (selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))) ? undefined : '#475569' }}
                     className={`px-5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center font-sans transition-colors ${
-                      !auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))
+                      selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))
                         ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
                         : 'hover:opacity-90 active:opacity-80 text-white cursor-pointer'
                     }`}
