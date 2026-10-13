@@ -400,10 +400,11 @@ export default function SettlementView() {
   const [isExpenseListExpanded, setIsExpenseListExpanded] = useState(false);
   const [selectedRejectReason, setSelectedRejectReason] = useState<'金額不符' | '末 5 碼有誤' | '其他'>('金額不符');
   const [customRejectInput, setCustomRejectInput] = useState('');
+  const [auditActualReceived, setAuditActualReceived] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [reasonModalData, setReasonModalData] = useState<{ mainReason: string; detailReason?: string } | null>(null);
 
-  // Revision Modal for Rejected Item (退款款項修正)
+  // Revision Modal for Rejected Item (重新還款申請)
   const [revisionItem, setRevisionItem] = useState<PayableCardItem | null>(null);
   const [revisionPaymentMethod, setRevisionPaymentMethod] = useState<'transfer' | 'cash'>('transfer');
   const [revisionLastFiveDigits, setRevisionLastFiveDigits] = useState('');
@@ -920,10 +921,9 @@ export default function SettlementView() {
       setAuditModalOrder(order);
       setShowRejectMenu(openRejectMenu);
       setIsExpenseListExpanded(false);
-      if (openRejectMenu) {
-        setSelectedRejectReason('金額不符');
-        setCustomRejectInput('');
-      }
+      setSelectedRejectReason('金額不符');
+      setCustomRejectInput('');
+      setAuditActualReceived('');
     } else {
       showToast('找不到對應的還款單據');
     }
@@ -949,10 +949,9 @@ export default function SettlementView() {
       setAuditModalOrder(order);
       setShowRejectMenu(openRejectMenu);
       setIsExpenseListExpanded(false);
-      if (openRejectMenu) {
-        setSelectedRejectReason('金額不符');
-        setCustomRejectInput('');
-      }
+      setSelectedRejectReason('金額不符');
+      setCustomRejectInput('');
+      setAuditActualReceived('');
     } else {
       showToast('找不到對應的審核單據');
     }
@@ -2263,12 +2262,12 @@ export default function SettlementView() {
           
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md border border-[#C3D3DE]/50 z-10 animate-in fade-in zoom-in-95 duration-200 font-sans max-h-[92vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
-              <h3 className="text-base font-bold text-[#3A342E] flex items-center gap-2">
-                <CreditCard size={18} className="text-[#74818E]" />
-                還款申請
-              </h3>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
+            <div className="flex items-center justify-between px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 bg-white shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block mr-2" />
+                <h3 className="text-base font-bold text-[#3A342E]">還款申請</h3>
+              </div>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -2464,7 +2463,7 @@ export default function SettlementView() {
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
-                <ShieldCheck size={20} className="text-[#8FB96C]" />
+                <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block mr-2" />
                 <div>
                   <h3 className="text-base font-bold text-[#3A342E]">
                     還款審核
@@ -2479,6 +2478,9 @@ export default function SettlementView() {
                   setAuditModalOrder(null);
                   setShowRejectMenu(false);
                   setIsExpenseListExpanded(false);
+                  setAuditActualReceived('');
+                  setCustomRejectInput('');
+                  setSelectedRejectReason('金額不符');
                 }} 
                 className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 title="關閉審核視窗"
@@ -2504,7 +2506,7 @@ export default function SettlementView() {
                   </div>
                   <div className="text-right">
                     <div className="text-[11px] text-[#74818E]">待核對還款總額</div>
-                    <div className="text-2xl font-black text-[#C1503B] font-sans">
+                    <div className="text-2xl font-black text-slate-800 font-sans">
                       NT${auditModalOrder.amount.toLocaleString()}
                     </div>
                   </div>
@@ -2692,6 +2694,53 @@ export default function SettlementView() {
                         })}
                       </div>
 
+                      {/* 實際收到金額 + 少收計算 (僅在選擇「金額不符」時顯示) */}
+                      {selectedRejectReason === '金額不符' && (
+                        <div className="pl-6 flex items-center gap-3 mt-3">
+                          {/* Label: 較淡的中性灰 */}
+                          <label className="text-xs text-slate-600 whitespace-nowrap flex items-center">
+                            實際收到金額<span className="text-rose-500 font-semibold ml-0.5">*</span>
+                          </label>
+
+                          {/* Input 容器：左側固定顯示 $ 符號，placeholder 留空 */}
+                          <div className="relative w-32 shrink-0">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-sans select-none pointer-events-none">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={auditActualReceived}
+                              placeholder=""
+                              onChange={(e) => setAuditActualReceived(e.target.value)}
+                              className="w-full pl-6 pr-3 py-1 bg-white border border-rose-300 rounded-xl text-xs font-sans font-semibold text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-[#C1503B]"
+                            />
+                          </div>
+
+                          {/* 即時差額提示 (支援少收、溢收與相符) */}
+                          {auditActualReceived.trim() && !isNaN(parseFloat(auditActualReceived)) && (() => {
+                            const diff = auditModalOrder.amount - parseFloat(auditActualReceived);
+                            return (
+                              <span
+                                className={
+                                  diff < 0
+                                    ? 'text-sm font-semibold text-amber-600 whitespace-nowrap ml-1'
+                                    : diff === 0
+                                    ? 'text-sm font-semibold text-emerald-600 whitespace-nowrap ml-1'
+                                    : 'text-sm font-semibold text-rose-600 whitespace-nowrap ml-1'
+                                }
+                              >
+                                {diff > 0
+                                  ? `少收 $${diff.toLocaleString()}`
+                                  : diff < 0
+                                  ? `溢收 $${Math.abs(diff).toLocaleString()}`
+                                  : '金額相符 ($0)'}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      )}
+
                       <div className="pl-6">
                         <div className="relative">
                           <input
@@ -2700,11 +2749,13 @@ export default function SettlementView() {
                             value={customRejectInput}
                             onChange={(e) => setCustomRejectInput(e.target.value)}
                             placeholder={
-                              selectedRejectReason === '其他'
-                                ? '請說明退回原因 (例：少轉 200 元、查無帳目)...'
-                                : '可選填補充說明 (例如：請再次核對轉帳末五碼)...'
+                              selectedRejectReason === '金額不符'
+                                ? '例如：請補齊差額，或私下溝通後重新發送'
+                                : selectedRejectReason === '末 5 碼有誤'
+                                ? '例如：查無此末五碼，請核對帳號或重新轉帳'
+                                : '請簡短說明退回原因 (例如：憑證模糊/尚未收到款項)'
                             }
-                            className="w-full px-3 py-1.5 pr-12 bg-white border border-red-200 rounded-xl text-xs focus:outline-none focus:border-[#C1503B]"
+                            className="w-full px-3 py-1.5 pr-12 bg-white border border-red-200 rounded-xl text-xs placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-[#C1503B]"
                           />
                           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-sans pointer-events-none select-none">
                             {customRejectInput.length}/30
@@ -2752,13 +2803,19 @@ export default function SettlementView() {
                 <div className="flex items-center justify-end gap-2.5 w-full">
                   <button
                     type="button"
-                    onClick={() => setShowRejectMenu(false)}
+                    onClick={() => {
+                      setShowRejectMenu(false);
+                      setAuditActualReceived('');
+                      setCustomRejectInput('');
+                      setSelectedRejectReason('金額不符');
+                    }}
                     className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer transition-colors font-sans"
                   >
                     取消退回
                   </button>
                   <button
                     type="button"
+                    disabled={!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))}
                     onClick={() => {
                       const finalReason = selectedRejectReason === '其他' 
                         ? (customRejectInput.trim() ? `其他（${customRejectInput.trim()}）` : '其他') 
@@ -2770,13 +2827,20 @@ export default function SettlementView() {
                         setAuditModalOrder(null);
                         setShowRejectMenu(false);
                         setIsExpenseListExpanded(false);
+                        setAuditActualReceived('');
+                        setCustomRejectInput('');
+                        setSelectedRejectReason('金額不符');
                       } else {
                         showToast(res.error || '退回操作失敗');
                       }
                     }}
-                    className="px-5 py-2 bg-[#C1503B] hover:bg-[#a84430] active:bg-[#913b29] text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 font-sans transition-colors"
+                    style={{ backgroundColor: (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))) ? undefined : '#475569' }}
+                    className={`px-5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center font-sans transition-colors ${
+                      !auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived))
+                        ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
+                        : 'hover:opacity-90 active:opacity-80 text-white cursor-pointer'
+                    }`}
                   >
-                    <AlertCircle size={13} />
                     確認退回
                   </button>
                 </div>
@@ -2909,7 +2973,7 @@ export default function SettlementView() {
               <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 bg-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
-                  <h3 className="text-base font-bold text-[#3A342E]">退款款項修正</h3>
+                  <h3 className="text-base font-bold text-[#3A342E]">重新還款申請</h3>
                 </div>
                 <button 
                   type="button"
