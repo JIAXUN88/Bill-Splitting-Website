@@ -2817,9 +2817,21 @@ export default function SettlementView() {
                     type="button"
                     disabled={selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))}
                     onClick={() => {
+                      // 1. 如果選擇「金額不符」，自動計算少收/溢收並組合進原因明細
+                      let reasonDetail = customRejectInput.trim();
+                      if (selectedRejectReason === '金額不符') {
+                        const actualVal = parseFloat(auditActualReceived);
+                        if (!isNaN(actualVal)) {
+                          const diff = auditModalOrder.amount - actualVal;
+                          const diffStr = diff > 0 ? `少收 $${diff}` : diff < 0 ? `溢收 $${Math.abs(diff)}` : '金額相符 ($0)';
+                          reasonDetail = reasonDetail ? `${diffStr}，${reasonDetail}` : diffStr;
+                        }
+                      }
+
+                      // 2. 組合最終的退回原因字串（供後續解析）
                       const finalReason = selectedRejectReason === '其他' 
-                        ? (customRejectInput.trim() ? `其他（${customRejectInput.trim()}）` : 'other' === 'other' ? '其他' : '其他') 
-                        : (customRejectInput.trim() ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${customRejectInput.trim()}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
+                        ? (reasonDetail ? `其他（${reasonDetail}）` : '其他') 
+                        : (reasonDetail ? `${selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason}（${reasonDetail}）` : (selectedRejectReason === '末 5 碼有誤' ? '末5碼有誤' : selectedRejectReason));
                       
                       const res = rejectSettlement(auditModalOrder.id, finalReason);
                       if (res.success) {
@@ -2953,13 +2965,20 @@ export default function SettlementView() {
           );
 
           const relatedExpenseIds = rejectedOrder ? rejectedOrder.relatedExpenseIds : [revisionItem.expenseId];
-          const relatedExpenses = expenses.filter(e => relatedExpenseIds.includes(e.id));
           const totalAmount = rejectedOrder ? rejectedOrder.amount : revisionItem.amount;
   
           // 取得完整的退回原因字串
           const rawReasonStr = revisionItem.rejectReason || rejectedOrder?.rejectReason || '';
+          const parsedReason = parseRejectReason(rawReasonStr);
 
-          // 從退回原因文字中解析出少收或溢收的金額 (例如：「金額不符（少收 $40）」)
+          // 判斷是否為末 5 碼錯誤
+          const isLastFiveError = parsedReason.mainReason === '末5碼有誤' || parsedReason.mainReason === '末 5 碼有誤' || rawReasonStr.includes('末5碼') || rawReasonStr.includes('末 5 碼');
+
+          // 從原付款單據或結算單據的 notes 中解析出原本填寫的末 5 碼
+          const origTransferInfo = parseTransferDetails(rejectedOrder?.notes);
+          const origLastFive = origTransferInfo.lastFive || '-----';
+
+          // 從退回原因文字中解析出少收或溢收的金額 (金額不適用於末5碼)
           let parsedDiff = 0;
           const shortMatch = rawReasonStr.match(/少收\s*\$(\d+)/);
           const overMatch = rawReasonStr.match(/溢收\s*\$(\d+)/);
@@ -2970,11 +2989,9 @@ export default function SettlementView() {
             parsedDiff = -parseInt(overMatch[1], 10);
           }
 
-          // 動態計算實際收到金額與還差金額
           const diffAmount = Math.abs(parsedDiff);
           const actualPaid = rawReasonStr.includes('溢收') ? totalAmount + diffAmount : totalAmount - parsedDiff;
 
-          const parsedReason = parseRejectReason(revisionItem.rejectReason || rejectedOrder?.rejectReason);
           const reasonSummary = parsedReason.detailReason || parsedReason.mainReason;
           const rejecterName = getMemberDisplayName(revisionItem.creditorId);
 
@@ -2992,53 +3009,85 @@ export default function SettlementView() {
                 onClick={(e) => e.stopPropagation()}
               >
               {/* 1. 頂部標題區 */}
-        <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
-            <h3 className="text-base text-slate-800 font-semibold tracking-tight font-sans">
-              重新還款申請
-            </h3>
-          </div>
-          <button 
-            type="button"
-            onClick={() => setRevisionItem(null)} 
-            className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[#74818E] hover:bg-[#F7F2E7] hover:text-[#3A342E] transition-colors cursor-pointer"
-          >
-            <X size={18} strokeWidth={1.75} />
-          </button>
-        </div>
+              <div className="px-4 py-2.5 sm:px-6 sm:py-3 border-b border-[#C3D3DE]/30 flex items-center justify-between bg-white shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block" />
+                  <h3 className="text-base text-slate-800 font-semibold tracking-tight font-sans">
+                    重新還款申請
+                  </h3>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setRevisionItem(null)} 
+                  className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-[#74818E] hover:bg-[#F7F2E7] hover:text-[#3A342E] transition-colors cursor-pointer"
+                >
+                  <X size={18} strokeWidth={1.75} />
+                </button>
+              </div>
 
               {/* Modal Scrollable Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
 
-              {/* 2. 退回原因警示框 */}
-              <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
-                <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
-                  收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，實收 ${actualPaid.toLocaleString()}
-                </div>
-                <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
-                  還差 ${diffAmount.toLocaleString()}
-                </div>
-                {reasonSummary && (
-                  <div className="text-xs text-rose-800/80">
-                    退回原因：「{reasonSummary}」
+              {/* 2. 依照退回原因動態切換頂部提示卡片 (已移除末5碼的留言拼接) */}
+                {isLastFiveError ? (
+                  <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
+                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                      收款人：{rejecterName} ｜ 原填末 5 碼：{origLastFive}
+                    </div>
+                    <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
+                      請更正末 5 碼
+                    </div>
+                    {parsedReason.detailReason && (
+                      <div className="text-xs text-rose-800/80">
+                        退回原因：「{parsedReason.detailReason}」
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
+                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                      收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，實收 ${actualPaid.toLocaleString()}
+                    </div>
+                    <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
+                      還差 ${diffAmount.toLocaleString()}
+                    </div>
+                    {reasonSummary && (
+                      <div className="text-xs text-rose-800/80">
+                        退回原因：「{reasonSummary}」
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
               
-              {/* 3. 補款說明 (選填) */}
-                <div className="space-y-1.5">
-                <label className="block text-xs sm:text-sm font-medium text-slate-800">
-                  補款說明 (選填)
-                </label>
-                <input
-                  type="text"
-                  value={revisionNote}
-                  onChange={(e) => setRevisionNote(e.target.value)}
-                  placeholder="例如：已私下 Line Pay 補足少給的差額"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 focus:border-[#475569] rounded-xl text-xs sm:text-sm font-normal text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none transition-colors"
-                />
-              </div>
+              {/* 3. 依照類型顯示對應輸入欄位：「正確的末 5 碼 (必填)」或「補款說明」 */}
+                {isLastFiveError ? (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs sm:text-sm font-medium text-slate-800">
+                      正確的末 5 碼 (必填)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={5}
+                      value={revisionLastFiveDigits}
+                      onChange={(e) => setRevisionLastFiveDigits(e.target.value.replace(/\D/g, ''))}
+                      placeholder="請輸入正確的 5 位數字"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 focus:border-[#475569] rounded-xl text-xs sm:text-sm font-normal text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none transition-colors font-mono font-bold"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs sm:text-sm font-medium text-slate-800">
+                      補款說明 (選填)
+                    </label>
+                    <input
+                      type="text"
+                      value={revisionNote}
+                      onChange={(e) => setRevisionNote(e.target.value)}
+                      placeholder="例如：已私下 Line Pay 補足少給的差額"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 focus:border-[#475569] rounded-xl text-xs sm:text-sm font-normal text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none transition-colors"
+                    />
+                  </div>
+                )}
 
               {/* 4. 上傳憑證 (選填) */}
                 <div className="space-y-1.5">
@@ -3086,24 +3135,58 @@ export default function SettlementView() {
                     )}
                   </div>
                 </div>
-
+                
                 {/* 5. 底部 Action Buttons (取消 / 重新送出) */}
-                  <div className="px-4 py-3 sm:px-6 border-t border-gray-100 bg-white flex items-center justify-end gap-2.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setRevisionItem(null)}
-                      className="px-4 py-2 rounded-lg border border-gray-200 text-slate-600 font-semibold text-xs sm:text-sm bg-white hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleConfirmRevision}
-                      style={{ backgroundColor: '#475569' }}
-                      className="text-white font-semibold rounded-lg px-5 py-2 text-xs sm:text-sm transition-opacity hover:opacity-90 active:opacity-80 cursor-pointer shadow-xs"
-                    >
-                      重新送出
-                    </button>
+                {/* 5. 底部 Action Buttons (取消 / 重新送出，若為末5碼則必須輸入滿5碼才能點擊) */}
+                <div className="px-4 py-3 sm:px-6 border-t border-gray-100 bg-white flex items-center justify-end gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRevisionItem(null)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-slate-600 font-semibold text-xs sm:text-sm bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLastFiveError && revisionLastFiveDigits.length !== 5}
+                    onClick={() => {
+                      if (!revisionItem) return;
+                      const noteText = isLastFiveError
+                        ? [
+                            `銀行轉帳 (末5碼: ${revisionLastFiveDigits})`,
+                            revisionNote.trim()
+                          ].filter(Boolean).join(' - ')
+                        : [
+                            revisionPaymentMethod === 'transfer' ? `銀行轉帳 (末5碼: ${revisionLastFiveDigits})` : '現金/其他',
+                            revisionNote.trim()
+                          ].filter(Boolean).join(' - ');
+
+                      const res = createSettlement({
+                        title: `${currentUser.name} 重新送出 ${relatedExpenseIds.length} 筆結清項目`,
+                        fromUserId: currentUser.id,
+                        toUserId: revisionItem.creditorId,
+                        amount: totalAmount,
+                        expenseIds: relatedExpenseIds,
+                        notes: noteText,
+                        proofUrl: revisionProofImage || undefined
+                      });
+
+                      if (res.success) {
+                        setRevisionItem(null);
+                        showToast(`已重新送出審核！${relatedExpenseIds.length} 筆支出已連鎖鎖定。`);
+                      } else {
+                        showToast(res.error || '重新送出失敗');
+                      }
+                    }}
+                    style={{ backgroundColor: (isLastFiveError && revisionLastFiveDigits.length !== 5) ? undefined : '#475569' }}
+                    className={`text-white font-semibold rounded-lg px-5 py-2 text-xs sm:text-sm transition-opacity ${
+                      isLastFiveError && revisionLastFiveDigits.length !== 5
+                        ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
+                        : 'hover:opacity-90 active:opacity-80 cursor-pointer shadow-xs'
+                    }`}
+                  >
+                    重新送出
+                  </button>
                   </div>                
               </div>
             </div>
