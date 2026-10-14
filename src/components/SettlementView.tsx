@@ -31,6 +31,7 @@ import {
   Banknote,
   FileImage,
   ZoomIn,
+  MessageSquare,
   Utensils,
   Car,
   ShoppingBag,
@@ -2451,205 +2452,298 @@ export default function SettlementView() {
       )}
 
       {/* 收款人審核彈窗 (Audit Modal for Creditor / Receiver) */}
-      {auditModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          {/* 背景黑幕：禁用點擊黑幕關閉 (Strict Modal Closure 防呆機制) */}
-          <div className="fixed inset-0 bg-[#3A342E]/50 backdrop-blur-xs select-none" />
+      {auditModalOrder && (() => {
+                // 1. 偵測是否為「退回修正後重送」之二次審核情境 (Secondary Audit State)
+        // 僅「退回後重新送出」的單據才算二次審核（重送單標題固定含「重新送出」）
+        const isSecondaryAudit = Boolean(
+          auditModalOrder.title?.includes('重新送出') ||
+          auditModalOrder.title?.includes('修正') ||
+          auditModalOrder.title?.includes('重送')
+        );
 
-          <div 
-            className="relative bg-white rounded-3xl p-6 shadow-2xl w-full max-w-lg border border-[#C3D3DE]/50 z-10 my-auto h-auto flex flex-col font-sans transition-all duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block mr-2" />
-                <div>
-                  <h3 className="text-base font-bold text-[#3A342E]">
-                    還款審核
-                  </h3>
-                  <p className="text-[11px] text-[#74818E]">單據編號：{auditModalOrder.id}</p>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            {/* 背景黑幕：禁用點擊黑幕關閉 */}
+            <div className="fixed inset-0 bg-[#3A342E]/50 backdrop-blur-xs select-none" />
+
+            <div className="relative bg-white rounded-3xl p-6 shadow-2xl w-full max-w-lg border border-[#C3D3DE]/50 z-10 my-auto h-auto flex flex-col font-sans transition-all duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-[#74818E] rounded-full inline-block mr-2" />
+                  <div>
+                    {/* 2. 動態切換標題：初審顯示「還款審核」，二次審核顯示「重新還款審核」 */}
+                    <h3 className="text-base font-bold text-[#3A342E]">
+                      {isSecondaryAudit ? '重新還款審核' : '還款審核'}
+                    </h3>
+                  </div>
                 </div>
+                {/* 關閉按鈕 [X] */}
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setAuditModalOrder(null);
+                    setShowRejectMenu(false);
+                    setIsExpenseListExpanded(false);
+                    setAuditActualReceived('');
+                    setCustomRejectInput('');
+                    setSelectedRejectReason('金額不符');
+                  }} 
+                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="關閉審核視窗"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              {/* 唯一關閉按鈕 [X] (嚴格防呆，僅能透過此處關閉) */}
-              <button 
-                type="button"
-                onClick={() => {
-                  setAuditModalOrder(null);
-                  setShowRejectMenu(false);
-                  setIsExpenseListExpanded(false);
-                  setAuditActualReceived('');
-                  setCustomRejectInput('');
-                  setSelectedRejectReason('金額不符');
-                }} 
-                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                title="關閉審核視窗"
-              >
-                <X size={18} />
-              </button>
-            </div>
+
 
             {/* Modal Body: h-auto without internal scrollbar */}
             <div className="py-3.5 space-y-3.5 font-sans">
-              {/* 1. 金額與對象總覽卡片（整合輕量可摺疊關聯支出） */}
-              <div className="bg-[#F7F2E7] p-3.5 sm:p-4 rounded-2xl border border-[#C3D3DE]/50 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] text-[#74818E]">付款方 ➜ 收款方</div>
-                    <div className="text-sm font-bold text-[#3A342E] mt-0.5">
-                      {auditModalOrder.fromUserName} ➜ {auditModalOrder.toUserName} (我)
-                    </div>
-                    <div className="text-[11px] text-[#74818E] mt-1 flex items-center gap-1">
-                      <Clock size={11} />
-                      {auditModalOrder.createdAt} 發起還款
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] text-[#74818E]">待核對還款總額</div>
-                    <div className="text-2xl font-black text-slate-800 font-sans">
-                      NT${auditModalOrder.amount.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 輕量級可摺疊關聯支出開關 */}
-                <div className="pt-2 border-t border-[#C3D3DE]/40 flex flex-col">
-                  <button
-                    type="button"
-                    onClick={() => setIsExpenseListExpanded(prev => !prev)}
-                    className="self-start inline-flex items-center gap-1 text-xs font-semibold text-[#606D7A] hover:text-[#3A342E] cursor-pointer transition-colors"
-                  >
-                    <span>包含 {auditModalOrder.relatedExpenseIds.length} 筆支出明細</span>
-                    <ChevronDown
-                      size={13}
-                      className={`transition-transform duration-200 ${isExpenseListExpanded ? 'rotate-180 text-[#3A342E]' : ''}`}
-                    />
-                  </button>
-
-                  {/* 展開之支出清單 */}
-                  <AnimatePresence initial={false}>
-                    {isExpenseListExpanded && (
-                      <motion.div
-                        key="expense-sublist"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-2 space-y-1.5 pt-1">
-                          {expenses
-                            .filter(e => auditModalOrder.relatedExpenseIds.includes(e.id))
-                            .map(exp => {
-                              const debtorSplit = exp.splitMembers.find(m => resolveMemberId(m.memberId, m.name) === auditModalOrder.fromUserId);
-                              const myShare = debtorSplit?.amount || exp.amount;
-                              return (
-                                <div
-                                  key={exp.id}
-                                  className="bg-white/90 p-2 rounded-xl border border-stone-200/70 flex items-center justify-between text-xs"
-                                >
-                                  <div className="space-y-0.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-bold text-[#3A342E]">{exp.name}</span>
-                                      <span className="text-[10px] text-[#74818E] bg-stone-100 px-1.5 py-0.2 rounded">{exp.category}</span>
-                                    </div>
-                                    <div className="text-[10px] text-[#74818E]">{exp.date} · 原始 NT${exp.amount.toLocaleString()}</div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="font-bold text-[#8FB96C] font-sans">
-                                      應收 NT${myShare.toLocaleString()}
-                                    </div>
-                                    <span className="text-[9px] text-amber-700 inline-flex items-center gap-0.5 font-medium">
-                                      <Lock size={8} /> 鎖定中
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* 2. 對方提供之轉帳資訊專區 (整合輕量縮圖組件) */}
+              {/* 動態判斷並呈現審核卡片 (對應 AI Studio 的情境切換邏輯) */}
               {(() => {
-                const info = parseTransferDetails(auditModalOrder.notes);
-                return (
-                  <div className="bg-slate-50/90 px-3.5 py-2.5 rounded-xl border border-slate-200/80 text-xs space-y-2">
-                    {info.isCash ? (
-                      /* 現金/其他：單行精簡資訊列 */
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Banknote className="w-4 h-4 text-[#74818E] shrink-0" />
-                          <span className="text-[#74818E] font-medium">付款管道：</span>
-                          <span className="font-medium text-slate-800">現金 / 其他</span>
-                        </div>
-                        <span className="text-[11px] text-[#74818E]">實體交付結清</span>
-                      </div>
-                    ) : (
-                      /* 銀行轉帳：精簡單行資訊列（付款管道 + 帳號末 5 碼同一橫行，文字 Baseline 基準線垂直對齊） */
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="w-4 h-4 text-[#74818E] shrink-0" />
-                          <span className="text-[#74818E] font-medium">付款管道：</span>
-                          <span className="font-medium text-slate-800">銀行轉帳</span>
-                        </div>
+                const rawNotes = auditModalOrder.notes || '';
+                const isLastFiveRevision = rawNotes.includes('末5碼') || rawNotes.includes('末 5 碼') || rawNotes.includes('更正');
+                const isSupplementRevision = rawNotes.includes('補款') || rawNotes.includes('少給');
+                
+                // 解析上次退回原因
+                const prevReasonMatch = rawNotes.match(/（上次退回原因：「([^」]+)」）/) || rawNotes.match(/\[上次退回原因:\s*([^\]]+)\]/);
+                const prevReason = prevReasonMatch ? prevReasonMatch[1] : (auditModalOrder.rejectReason || '款項不符');
 
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-[#74818E] font-medium">帳號末 5 碼：</span>
-                          {info.lastFive ? (
-                            <span className="font-medium text-xs text-slate-800 tracking-wide">
-                              #{info.lastFive}
+                // 解析末 5 碼 (原填與更正後)
+                const transferInfo = parseTransferDetails(rawNotes);
+                const correctedLastFive = transferInfo.lastFive || '-----';
+                
+                // 尋找這筆訂單原本被退回時的記錄來抓取原填末 5 碼
+                const relatedRejectedOrder = settlementOrders.find(o => 
+                  o.status === 'REJECTED' && o.toUserId === auditModalOrder.fromUserId
+                );
+                const origTransferInfo = parseTransferDetails(relatedRejectedOrder?.notes);
+                const origLastFive = origTransferInfo.lastFive;
+
+                // 解析補款金額
+                const matchSupplement = rawNotes.match(/補款\s*\$(\d+)/) || rawNotes.match(/少收\s*\$(\d+)/);
+                const shortfallAmt = matchSupplement ? parseInt(matchSupplement[1], 10) : auditModalOrder.amount;
+                const actualReceivedAmt = auditModalOrder.amount - shortfallAmt;
+                const payerDisplayName = (() => {
+                const full = auditModalOrder.fromUserName || 'Alice';
+                // 「我 (Alice)」→ 取括號內的名字；其他如「小林 (Bob)」→ 取第一段
+                const inParen = full.match(/\(([^)]+)\)/);
+                if (full.startsWith('我') && inParen) return inParen[1];
+                return full.split(' ')[0];
+              })();
+
+                if (isLastFiveRevision) {
+                  /* === 情境 A：末 5 碼更正審核 (對應 AI Studio 的 LAST_FIVE_ERROR) === */
+                  return (
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4.5 space-y-3 font-sans">
+                      <div className="text-sm font-semibold text-amber-900">
+                        {payerDisplayName} 已更正末 5 碼，請核對
+                      </div>
+                      
+                      {transferInfo.memoText && (
+                        <div className="text-xs text-slate-600 font-normal">
+                          更正說明：「{transferInfo.memoText}」
+                        </div>
+                      )}
+
+                      <div className="border-t border-amber-200/80 pt-2.5 flex items-baseline gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-slate-800">
+                          {origLastFive ? (
+                            <span>
+                              原填末 5 碼：<span className="line-through text-slate-400 font-mono">{origLastFive}</span> ➔{' '}
+                              <span style={{ color: '#D12B58' }} className="font-extrabold font-mono">
+                                更正為：{correctedLastFive}
+                              </span>
                             </span>
                           ) : (
-                            <span className="text-slate-400 font-medium">未填寫</span>
+                            <span style={{ color: '#D12B58' }} className="font-extrabold font-mono">
+                              更正為：{correctedLastFive}
+                            </span>
                           )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 憑證截圖小型縮圖組件 (若有上傳憑證，顯示淡色檔名並支援點擊放大) */}
-                    {auditModalOrder.proofUrl && (
-                      <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <FileImage className="w-4 h-4 text-[#74818E] shrink-0" />
-                          <span className="text-[#74818E] font-medium">憑證截圖：</span>
-                          <span className="text-slate-400 font-normal text-xs">
-                            {auditModalOrder.proofUrl.startsWith('data:')
-                              ? `receipt_${auditModalOrder.createdAt ? auditModalOrder.createdAt.split(' ')[0].replace(/[^0-9]/g, '').slice(4) || '0917' : '0917'}.png`
-                              : (auditModalOrder.proofUrl.split('/').pop()?.split('?')[0] || 'receipt_0917.png')}
+                        </span>
+                        {prevReason && (
+                          <span className="text-xs text-amber-800/70 font-normal">
+                            （上次退回原因：「{prevReason}」）
                           </span>
-                        </div>
+                        )}
+                      </div>
 
-                        <div 
-                          className="relative group cursor-pointer shrink-0"
-                          onClick={() => setPreviewImageUrl(auditModalOrder.proofUrl!)}
-                          title="點擊放大檢視付款憑證"
-                        >
-                          <img 
-                            src={auditModalOrder.proofUrl} 
-                            alt="付款憑證縮圖" 
-                            className="w-16 h-16 object-cover rounded-lg border border-slate-300/90 shadow-2xs transition-all duration-150 group-hover:scale-105 group-hover:border-slate-400"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center text-white text-[10px] font-medium pointer-events-none">
-                            <ZoomIn size={14} className="mb-0.5" />
-                            <span>點擊放大</span>
+                      {/* 憑證縮圖 (若有) */}
+                      {auditModalOrder.proofUrl && (
+                        <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            <FileImage className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>憑證截圖：</span>
+                            <span className="text-slate-500 font-mono text-[11px]">
+                              {auditModalOrder.proofUrl.startsWith('data:') ? 'receipt_proof.png' : auditModalOrder.proofUrl.split('/').pop()}
+                            </span>
+                          </div>
+                          <div 
+                            className="relative group cursor-pointer shrink-0"
+                            onClick={() => setPreviewImageUrl(auditModalOrder.proofUrl!)}
+                          >
+                            <img 
+                              src={auditModalOrder.proofUrl} 
+                              alt="憑證縮圖" 
+                              className="w-12 h-12 object-cover rounded-lg border border-amber-200 shadow-2xs group-hover:scale-105 transition-all"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (isSupplementRevision) {
+                  /* === 情境 B：金額補款審核 (對應 AI Studio 的 AMOUNT_MISMATCH) === */
+                  return (
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4.5 space-y-3 font-sans">
+                      <div>
+                        <div className="text-sm font-semibold text-amber-900">
+                          {payerDisplayName} 表示已補款 ${shortfallAmt.toLocaleString()}，請確認
+                        </div>
+                        {transferInfo.memoText && (
+                          <div className="text-xs text-slate-600 mt-0.5 font-normal">
+                            補款說明：「{transferInfo.memoText}」
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-amber-200/80 pt-2.5 space-y-1">
+                        {/* 大字焦點算式 */}
+                        <div className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
+                          已收 ${actualReceivedAmt.toLocaleString()} ＋{' '}
+                          <span style={{ color: '#D12B58' }} className="font-extrabold">
+                            本次補款 ${shortfallAmt.toLocaleString()}
+                          </span>{' '}
+                          ＝ ${auditModalOrder.amount.toLocaleString()}
+                        </div>
+                        {prevReason && (
+                          <div className="text-xs text-amber-800/70 font-normal">
+                            （上次退回原因：「{prevReason}」）
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 憑證縮圖 */}
+                      {auditModalOrder.proofUrl && (
+                        <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            <FileImage className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>補款憑證：</span>
+                            <span className="text-slate-500 font-mono text-[11px]">
+                              {auditModalOrder.proofUrl.startsWith('data:') ? 'receipt_proof.png' : auditModalOrder.proofUrl.split('/').pop()}
+                            </span>
+                          </div>
+                          <div 
+                            className="relative group cursor-pointer shrink-0"
+                            onClick={() => setPreviewImageUrl(auditModalOrder.proofUrl!)}
+                          >
+                            <img 
+                              src={auditModalOrder.proofUrl} 
+                              alt="補款憑證" 
+                              className="w-12 h-12 object-cover rounded-lg border border-amber-200 shadow-2xs group-hover:scale-105 transition-all"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                /* === 初次審核：整合帳務總覽卡片（目前先做上半部，付款管道下一步加） === */
+                return (
+                  <div className="bg-white rounded-2xl border border-[#C3D3DE]/40 overflow-hidden shadow-sm">
+                    {/* 上半部：申請人與待核對金額總覽 */}
+                    <div className="p-3.5 sm:p-4 bg-[#F7F2E7]/60 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm sm:text-base font-semibold text-slate-800">
+                            {payerDisplayName} 的還款申請
+                          </div>
+                          <div className="text-[11px] text-[#74818E] font-normal mt-1 flex items-center gap-1">
+                            <Clock size={11} strokeWidth={1.75} />
+                            {auditModalOrder.createdAt} 發起還款
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[11px] text-[#74818E] font-normal">待核對還款總額</div>
+                          <div className="text-2xl text-slate-800 font-bold font-sans tabular-nums">
+                            NT${auditModalOrder.amount.toLocaleString()}
                           </div>
                         </div>
                       </div>
-                    )}
 
-                    {info.memoText && (
-                      <div className="pt-1.5 border-t border-slate-200/60 flex items-start gap-1.5 text-[11px]">
-                        <span className="text-[#74818E] font-medium shrink-0">備註：</span>
-                        <span className="text-slate-800 font-medium leading-normal">{info.memoText}</span>
+                      {/* 輕量級可摺疊關聯支出開關 */}
+                      <div className="pt-2 border-t border-[#C3D3DE]/20 flex flex-col">
+                        <button
+                          type="button"
+                          onClick={() => setIsExpenseListExpanded(prev => !prev)}
+                          className="self-start inline-flex items-center gap-1 text-xs font-medium text-[#606D7A] hover:text-[#3A342E] cursor-pointer transition-colors"
+                        >
+                          <span>包含 {auditModalOrder.relatedExpenseIds.length} 筆支出明細</span>
+                          <ChevronDown
+                            size={13}
+                            strokeWidth={1.75}
+                            className={`transition-transform duration-200 ${isExpenseListExpanded ? 'rotate-180 text-[#3A342E]' : ''}`}
+                          />
+                        </button>
+
+                        {/* 展開之支出清單 */}
+                        <AnimatePresence initial={false}>
+                          {isExpenseListExpanded && (
+                            <motion.div
+                              key="expense-sublist"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2, ease: 'easeInOut' }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-2 space-y-1.5 pt-1">
+                                {expenses
+                                  .filter(e => auditModalOrder.relatedExpenseIds.includes(e.id))
+                                  .map(exp => {
+                                    const debtorSplit = exp.splitMembers.find(m => resolveMemberId(m.memberId, m.name) === auditModalOrder.fromUserId);
+                                    const myShare = debtorSplit?.amount || exp.amount;
+                                    return (
+                                      <div
+                                        key={exp.id}
+                                        className="bg-white/90 p-2 rounded-xl border border-stone-200/70 flex items-center justify-between text-xs"
+                                      >
+                                        <div className="space-y-0.5">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-medium text-slate-700">{exp.name}</span>
+                                            <span className="text-[10px] text-[#74818E] bg-stone-100 px-1.5 py-0.2 rounded">{exp.category}</span>
+                                          </div>
+                                          <div className="text-[10px] text-[#74818E]">{exp.date} · 原始 NT${exp.amount.toLocaleString()}</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="font-semibold text-[#8FB96C] font-sans tabular-nums">
+                                            應收 NT${myShare.toLocaleString()}
+                                          </div>
+                                          <span className="text-[9px] text-amber-700 inline-flex items-center gap-0.5 font-normal">
+                                            <Lock size={8} strokeWidth={1.75} /> 鎖定中
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                    )}
+                    </div>
+
+                    {/* 下半部：付款管道（下一步在這裡加） */}
                   </div>
                 );
+                
               })()}
 
               {/* 3. 退回原因選單 (純文字水平單行 Radio 排版 + Smooth Accordion 動態展開) */}
@@ -2859,8 +2953,9 @@ export default function SettlementView() {
               )}
             </div>
           </div>
-        </div>
-      )}
+       </div>
+      );
+    })()}
 
       {/* 憑證截圖大圖預覽 Lightbox Overlay (點擊任意處關閉) */}
       {previewImageUrl && (
