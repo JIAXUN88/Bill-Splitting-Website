@@ -2504,8 +2504,8 @@ export default function SettlementView() {
               {/* 動態判斷並呈現審核卡片 (對應 AI Studio 的情境切換邏輯) */}
               {(() => {
                 const rawNotes = auditModalOrder.notes || '';
-                const isLastFiveRevision = rawNotes.includes('末5碼') || rawNotes.includes('末 5 碼') || rawNotes.includes('更正');
-                const isSupplementRevision = rawNotes.includes('補款') || rawNotes.includes('少給');
+                const isLastFiveRevision = isSecondaryAudit && (rawNotes.includes('末5碼') || rawNotes.includes('末 5 碼') || rawNotes.includes('更正'));
+                const isSupplementRevision = isSecondaryAudit && (rawNotes.includes('補款') || rawNotes.includes('少給'));
                 
                 // 解析上次退回原因
                 const prevReasonMatch = rawNotes.match(/（上次退回原因：「([^」]+)」）/) || rawNotes.match(/\[上次退回原因:\s*([^\]]+)\]/);
@@ -2740,7 +2740,70 @@ export default function SettlementView() {
                       </div>
                     </div>
 
-                    {/* 下半部：付款管道（下一步在這裡加） */}
+                    {/* 下半部：對方提供之付款管道與轉帳資訊 */}
+                    <div className="px-3.5 py-2.5 sm:px-4 border-t border-[#C3D3DE]/20 bg-slate-50/50 text-xs space-y-2">
+                      {transferInfo.isCash ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Banknote className="w-4 h-4 text-[#74818E] shrink-0" strokeWidth={1.75} />
+                            <span className="text-[#74818E] font-normal">付款管道：</span>
+                            <span className="font-medium text-slate-700">現金 / 其他</span>
+                          </div>
+                          <span className="text-[11px] text-[#74818E] font-normal">實體交付結清</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4 text-[#74818E] shrink-0" strokeWidth={1.75} />
+                            <span className="text-[#74818E] font-normal">付款管道：</span>
+                            <span className="font-medium text-slate-700">銀行轉帳</span>
+                          </div>
+
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[#74818E] font-normal">帳號末 5 碼：</span>
+                            {transferInfo.lastFive ? (
+                              <span className="font-medium text-xs text-slate-700 tracking-wide">
+                                #{transferInfo.lastFive}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">未填寫</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 憑證截圖小型縮圖組件 */}
+                      {auditModalOrder.proofUrl && (
+                        <div className="pt-2 border-t border-[#C3D3DE]/20 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <FileImage className="w-4 h-4 text-[#74818E] shrink-0" strokeWidth={1.75} />
+                            <span className="text-[#74818E] font-normal">憑證截圖：</span>
+                            <span className="text-slate-400 font-normal text-xs">
+                              {auditModalOrder.proofUrl.startsWith('data:')
+                                ? `receipt_${auditModalOrder.createdAt ? auditModalOrder.createdAt.split(' ')[0].replace(/[^0-9]/g, '').slice(4) || '0917' : '0917'}.png`
+                                : (auditModalOrder.proofUrl.split('/').pop()?.split('?')[0] || 'receipt_0917.png')}
+                            </span>
+                          </div>
+
+                          <div
+                            className="relative group cursor-pointer shrink-0"
+                            onClick={() => setPreviewImageUrl(auditModalOrder.proofUrl!)}
+                            title="點擊放大檢視付款憑證"
+                          >
+                            <img
+                              src={auditModalOrder.proofUrl}
+                              alt="付款憑證縮圖"
+                              className="w-16 h-16 object-cover rounded-lg border border-slate-300/90 shadow-2xs transition-all duration-150 group-hover:scale-105 group-hover:border-slate-400"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center text-white text-[10px] font-medium pointer-events-none">
+                              <ZoomIn size={14} strokeWidth={1.75} className="mb-0.5" />
+                              <span>點擊放大</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
                 
