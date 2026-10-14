@@ -3208,7 +3208,7 @@ export default function SettlementView() {
               {/* 2. 依照退回原因動態切換頂部提示卡片 (已移除末5碼的留言拼接) */}
                 {isLastFiveError ? (
                   <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
-                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                    <div className="text-xs text-slate-600 font-normal whitespace-nowrap tabular-nums">
                       收款人：{rejecterName} ｜ 原填末 5 碼：{origLastFive}
                     </div>
                     <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
@@ -3223,21 +3223,16 @@ export default function SettlementView() {
 
                                     ) : isOtherReason ? (
                   <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
-                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                    <div className="text-xs text-slate-600 font-normal whitespace-nowrap tabular-nums">
                       收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，退回此筆還款
                     </div>
-                    <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
-                      請依原因處理
+                    <div className="pt-1 text-xl font-bold text-rose-600 leading-snug break-words">
+                      原因：{otherReasonText || '其他'}
                     </div>
-                    {otherReasonText && (
-                      <div className="text-sm font-semibold text-rose-800 break-words">
-                        退回原因：「{otherReasonText}」
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
-                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                    <div className="text-xs text-slate-600 font-normal whitespace-nowrap tabular-nums">
                       收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，實收 ${actualPaid.toLocaleString()}
                     </div>
                     <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
