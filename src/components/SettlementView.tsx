@@ -2681,6 +2681,58 @@ export default function SettlementView() {
                   );
                 }
 
+                                if (isSecondaryAudit) {
+                  /* === 情境 C：其他原因被退回後的重新審核（上次退回原因為「其他」等非末 5 碼、非金額） === */
+                  const otherReasonText = (prevParsed.detailReason || '').trim() || prevMain;
+                  return (
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4.5 space-y-3 font-sans">
+                      <div>
+                        <div className="text-sm font-semibold text-amber-900">
+                          {payerDisplayName} 已更新還款資訊，請確認
+                        </div>
+                        {transferInfo.memoText && (
+                          <div className="text-xs text-slate-600 mt-0.5 font-normal">
+                            補充說明：「{transferInfo.memoText}」
+                          </div>
+                        )}
+                      </div>
+
+                      {otherReasonText && (
+                        <div className="border-t border-amber-200/80 pt-2.5">
+                          <div className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-snug break-words">
+                            上次退回原因：
+                            <span style={{ color: '#D12B58' }} className="font-extrabold">{otherReasonText}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 憑證縮圖 */}
+                      {auditModalOrder.proofUrl && (
+                        <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            <FileImage className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>憑證截圖：</span>
+                            <span className="text-slate-500 font-mono text-[11px]">
+                              {auditModalOrder.proofUrl.startsWith('data:') ? 'receipt_proof.png' : auditModalOrder.proofUrl.split('/').pop()}
+                            </span>
+                          </div>
+                          <div
+                            className="relative group cursor-pointer shrink-0"
+                            onClick={() => setPreviewImageUrl(auditModalOrder.proofUrl!)}
+                          >
+                            <img
+                              src={auditModalOrder.proofUrl}
+                              alt="還款憑證"
+                              className="w-12 h-12 object-cover rounded-lg border border-amber-200 shadow-2xs group-hover:scale-105 transition-all"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 /* === 初次審核：整合帳務總覽卡片（目前先做上半部，付款管道下一步加） === */
                 return (
                   <div className="bg-white rounded-2xl border border-[#C3D3DE]/40 overflow-hidden shadow-sm">
