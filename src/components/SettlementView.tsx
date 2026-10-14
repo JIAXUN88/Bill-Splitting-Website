@@ -2507,29 +2507,51 @@ export default function SettlementView() {
             <div className="py-3.5 space-y-3.5 font-sans">
               {/* 動態判斷並呈現審核卡片 (對應 AI Studio 的情境切換邏輯) */}
               {(() => {
-                const rawNotes = auditModalOrder.notes || '';
-                const isLastFiveRevision = isSecondaryAudit && (rawNotes.includes('末5碼') || rawNotes.includes('末 5 碼') || rawNotes.includes('更正'));
-                const isSupplementRevision = isSecondaryAudit && (rawNotes.includes('補款') || rawNotes.includes('少給'));
-                
-                // 解析上次退回原因
-                const prevReasonMatch = rawNotes.match(/（上次退回原因：「([^」]+)」）/) || rawNotes.match(/\[上次退回原因:\s*([^\]]+)\]/);
-                const prevReason = prevReasonMatch ? prevReasonMatch[1] : (auditModalOrder.rejectReason || '款項不符');
-
-                // 解析末 5 碼 (原填與更正後)
+                                const rawNotes = auditModalOrder.notes || '';
                 const transferInfo = parseTransferDetails(rawNotes);
-                const correctedLastFive = transferInfo.lastFive || '-----';
-                
-                // 尋找這筆訂單原本被退回時的記錄來抓取原填末 5 碼
-                const relatedRejectedOrder = settlementOrders.find(o => 
-                  o.status === 'REJECTED' && o.toUserId === auditModalOrder.fromUserId
-                );
-                const origTransferInfo = parseTransferDetails(relatedRejectedOrder?.notes);
-                const origLastFive = origTransferInfo.lastFive;
 
-                // 解析補款金額
-                const matchSupplement = rawNotes.match(/補款\s*\$(\d+)/) || rawNotes.match(/少收\s*\$(\d+)/);
-                const shortfallAmt = matchSupplement ? parseInt(matchSupplement[1], 10) : auditModalOrder.amount;
+                // 找出「上一次被退回」的單據：同付款人、同收款人、支出有重疊，且比這張單據更早建立
+                const prevRejectedOrder = settlementOrders
+                  .filter(o =>
+                    o.id !== auditModalOrder.id &&
+                    o.status === 'REJECTED' &&
+                    o.fromUserId === auditModalOrder.fromUserId &&
+                    o.toUserId === auditModalOrder.toUserId &&
+                    o.relatedExpenseIds.some(expId => auditModalOrder.relatedExpenseIds.includes(expId)) &&
+                    (o.createdAt || '') <= (auditModalOrder.createdAt || '')
+                  )
+                  .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+
+                // 解析上次的退回原因（找不到時為空字串）
+                let prevRawReason = prevRejectedOrder?.rejectReason || '';
+                if (!prevRawReason && prevRejectedOrder?.notes) {
+                  const m = prevRejectedOrder.notes.match(/\[退回原因:\s*([^\]]+)\]/);
+                  if (m) prevRawReason = m[1];
+                }
+                const prevParsed = parseRejectReason(prevRawReason);
+                const prevMain = prevParsed.mainReason || '';
+                const prevWasLastFive = prevMain.includes('末') && prevMain.includes('碼');
+                const prevWasAmount = !prevWasLastFive && prevMain.includes('金額');
+
+                // 依「上次退回的原因」決定顯示哪一種重新審核卡片（不再用備註文字猜）
+                const isLastFiveRevision = isSecondaryAudit && prevWasLastFive;
+                const isSupplementRevision = isSecondaryAudit && prevWasAmount;
+
+                // 上次退回時收款人親自輸入的備註（去掉系統自動產生的「少收／溢收 $X」）
+                const prevReason = (prevParsed.detailReason || '')
+                  .replace(/^(?:少收|少轉|少給|溢收|多收)\s*\$?\s*[\d,]+\s*元?\s*(?:[，,、]\s*)?/, '')
+                  .replace(/^金額相符\s*[（(]?\s*\$0\s*[）)]?\s*(?:[，,、]\s*)?/, '')
+                  .trim();
+
+                // 末 5 碼：上次填的 vs 這次更正的
+                const correctedLastFive = transferInfo.lastFive || '-----';
+                const origLastFive = parseTransferDetails(prevRejectedOrder?.notes).lastFive;
+
+                // 補款金額：取自上次退回原因裡的「少收 $X」
+                const prevShort = prevRawReason.match(/少收\s*\$?\s*([\d,]+)/);
+                const shortfallAmt = prevShort ? parseInt(prevShort[1].replace(/,/g, ''), 10) : auditModalOrder.amount;
                 const actualReceivedAmt = auditModalOrder.amount - shortfallAmt;
+
                 const payerDisplayName = (() => {
                 const full = auditModalOrder.fromUserName || 'Alice';
                 // 「我 (Alice)」→ 取括號內的名字；其他如「小林 (Bob)」→ 取第一段
