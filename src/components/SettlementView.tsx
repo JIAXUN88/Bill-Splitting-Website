@@ -3150,7 +3150,11 @@ export default function SettlementView() {
           const diffAmount = Math.abs(parsedDiff);
           const actualPaid = rawReasonStr.includes('溢收') ? totalAmount + diffAmount : totalAmount - parsedDiff;
 
-          const reasonSummary = parsedReason.detailReason || parsedReason.mainReason;
+          // 只取「收款人在首次審核時親自輸入的備註」，排除系統自動產生的「少收／溢收 $X」
+          const reasonNote = (parsedReason.detailReason || '')
+            .replace(/^(?:少收|少轉|少給|溢收|多收)\s*\$?\s*[\d,]+\s*元?\s*(?:[，,、]\s*)?/, '')
+            .replace(/^金額相符\s*[（(]?\s*\$0\s*[）)]?\s*(?:[，,、]\s*)?/, '')
+            .trim();
           const rejecterName = getMemberDisplayName(revisionItem.creditorId);
 
           return (
@@ -3209,9 +3213,9 @@ export default function SettlementView() {
                     <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
                       還差 ${diffAmount.toLocaleString()}
                     </div>
-                    {reasonSummary && (
+                    {reasonNote && (
                       <div className="text-xs text-rose-800/80">
-                        退回原因：「{reasonSummary}」
+                        退回原因：「{reasonNote}」
                       </div>
                     )}
                   </div>
