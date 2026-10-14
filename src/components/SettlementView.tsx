@@ -2681,28 +2681,37 @@ export default function SettlementView() {
                   );
                 }
 
-                                if (isSecondaryAudit) {
+                                                if (isSecondaryAudit) {
                   /* === 情境 C：其他原因被退回後的重新審核（上次退回原因為「其他」等非末 5 碼、非金額） === */
                   const otherReasonText = (prevParsed.detailReason || '').trim() || prevMain;
+                  const hasPayerResponse = Boolean(transferInfo.memoText || auditModalOrder.proofUrl);
                   return (
                     <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4.5 space-y-3 font-sans">
+                      {/* 標題：有回應才說「已更新」，沒回應就如實寫「已重新送出」；原因降為小字提醒 */}
                       <div>
                         <div className="text-sm font-semibold text-amber-900">
-                          {payerDisplayName} 已更新還款資訊，請確認
+                          {payerDisplayName} {hasPayerResponse ? '已更新還款資訊，請確認' : '已重新送出還款'}
                         </div>
-                        {transferInfo.memoText && (
-                          <div className="text-xs text-slate-600 mt-0.5 font-normal">
-                            補充說明：「{transferInfo.memoText}」
+                        {otherReasonText && (
+                          <div className="text-xs text-slate-600 mt-0.5 font-normal break-words">
+                            你上次的退回原因：{otherReasonText}
                           </div>
                         )}
                       </div>
 
-                      {otherReasonText && (
-                        <div className="border-t border-amber-200/80 pt-2.5">
-                          <div className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-snug break-words">
-                            上次退回原因：
-                            <span style={{ color: '#D12B58' }} className="font-extrabold">{otherReasonText}</span>
-                          </div>
+                      {/* 付款人的回應（補充說明）；兩者皆無時如實告知 */}
+                      {(transferInfo.memoText || !auditModalOrder.proofUrl) && (
+                        <div className="border-t border-amber-200/80 pt-2.5 space-y-1">
+                          {transferInfo.memoText ? (
+                            <>
+                              <div className="text-[11px] text-slate-500 font-normal">付款人回應</div>
+                              <div className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-snug break-words">
+                                {transferInfo.memoText}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-xs text-slate-500 font-normal">付款人未附補充說明或新憑證</div>
+                          )}
                         </div>
                       )}
 
