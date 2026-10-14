@@ -2460,6 +2460,10 @@ export default function SettlementView() {
           auditModalOrder.title?.includes('修正') ||
           auditModalOrder.title?.includes('重送')
         );
+        // 「確認退回」是否不可按：金額不符須填實收金額；其他須填退回原因
+        const isRejectConfirmDisabled =
+          (selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))) ||
+          (selectedRejectReason === '其他' && !customRejectInput.trim());
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -2898,19 +2902,24 @@ export default function SettlementView() {
                         </div>
                       )}
 
-                      <div className="pl-6">
+                        <div className="pl-6">
+                        {selectedRejectReason === '其他' && (
+                          <label className="block text-xs text-slate-600 mb-1.5">
+                            說明原因<span className="text-rose-500 font-semibold ml-0.5">*</span>
+                          </label>
+                        )}
                         <div className="relative">
                           <input
                             type="text"
                             maxLength={30}
                             value={customRejectInput}
                             onChange={(e) => setCustomRejectInput(e.target.value)}
-                            placeholder={
+                                                                                      placeholder={
                               selectedRejectReason === '金額不符'
                                 ? '例如：請補齊差額，或私下溝通後重新發送'
                                 : selectedRejectReason === '末 5 碼有誤'
                                 ? '例如：查無此末五碼，請核對帳號或重新轉帳'
-                                : '請簡短說明退回原因 (例如：憑證模糊/尚未收到款項)'
+                                : '例如：憑證模糊/未收到款項)'
                             }
                             className="w-full px-3 py-1.5 pr-12 bg-white border border-red-200 rounded-xl text-xs placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:border-[#C1503B]"
                           />
@@ -2972,7 +2981,7 @@ export default function SettlementView() {
                   </button>
                   <button
                     type="button"
-                    disabled={selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))}
+                    disabled={isRejectConfirmDisabled}
                     onClick={() => {
                       // 1. 如果選擇「金額不符」，自動計算少收/溢收並組合進原因明細
                       let reasonDetail = customRejectInput.trim();
@@ -3003,10 +3012,10 @@ export default function SettlementView() {
                         showToast(res.error || '退回操作失敗');
                       }
                     }}
-                    style={{ backgroundColor: (selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))) ? undefined : '#475569' }}
+                    style={{ backgroundColor: isRejectConfirmDisabled ? undefined : '#475569' }}
                     className={`px-5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center font-sans transition-colors ${
-                      selectedRejectReason === '金額不符' && (!auditActualReceived.trim() || isNaN(parseFloat(auditActualReceived)))
-                        ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
+                    isRejectConfirmDisabled
+                    ? 'bg-[#E5E7EB] text-[#99A1AF] cursor-not-allowed'
                         : 'hover:opacity-90 active:opacity-80 text-white cursor-pointer'
                     }`}
                   >
@@ -3155,6 +3164,12 @@ export default function SettlementView() {
             .replace(/^(?:少收|少轉|少給|溢收|多收)\s*\$?\s*[\d,]+\s*元?\s*(?:[，,、]\s*)?/, '')
             .replace(/^金額相符\s*[（(]?\s*\$0\s*[）)]?\s*(?:[，,、]\s*)?/, '')
             .trim();
+          
+          // 退回原因為「其他」（排除末 5 碼與金額差額）：直接顯示收款人輸入的完整原因
+          const isOtherReason = !isLastFiveError && parsedReason.mainReason === '其他' && !shortMatch && !overMatch;
+          const otherReasonText = (parsedReason.detailReason || '').trim();
+
+          
           const rejecterName = getMemberDisplayName(revisionItem.creditorId);
 
           return (
@@ -3205,6 +3220,21 @@ export default function SettlementView() {
                       </div>
                     )}
                   </div>
+
+                                    ) : isOtherReason ? (
+                  <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
+                    <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
+                      收款人：{rejecterName} ｜ 帳單總額 ${totalAmount.toLocaleString()}，退回此筆還款
+                    </div>
+                    <div className="text-2xl font-bold text-rose-600 my-1 tabular-nums">
+                      請依原因處理
+                    </div>
+                    {otherReasonText && (
+                      <div className="text-sm font-semibold text-rose-800 break-words">
+                        退回原因：「{otherReasonText}」
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="bg-rose-50/60 rounded-xl border border-rose-200/60 p-4 space-y-1">
                     <div className="text-xs text-rose-700/90 font-normal whitespace-nowrap tabular-nums">
@@ -3239,13 +3269,13 @@ export default function SettlementView() {
                 ) : (
                   <div className="space-y-1.5">
                     <label className="block text-xs sm:text-sm font-medium text-slate-800">
-                      補款說明 (選填)
+                      補充說明 (選填)
                     </label>
                     <input
                       type="text"
                       value={revisionNote}
                       onChange={(e) => setRevisionNote(e.target.value)}
-                      placeholder="例如：已私下 Line Pay 補足少給的差額"
+                      placeholder={isOtherReason ? '例如：已重新上傳清晰的憑證' : '例如：已私下 Line Pay 補足少給的差額'}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-300 focus:border-[#475569] rounded-xl text-xs sm:text-sm font-normal text-slate-800 placeholder:font-normal placeholder:text-slate-400 focus:outline-none transition-colors"
                     />
                   </div>
