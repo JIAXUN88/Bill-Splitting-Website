@@ -139,7 +139,7 @@ export default function Navbar({
     } else {
       resetToDefaultData();
     }
-    setProfileFeedback('已恢復預設 3 筆測試帳款');
+    setProfileFeedback('已重置為預設測試資料');
     setTimeout(() => setProfileFeedback(null), 3000);
   };
 
@@ -310,7 +310,7 @@ export default function Navbar({
               type="button"
               id="reset-data-btn"
               onClick={handleResetDataClick}
-              title="重置測試資料 (恢復為預設 3 筆初始支出)"
+              title="重置測試資料 (恢復為預設初始資料)"
               className="hidden lg:inline-flex items-center px-3 py-2 text-xs font-medium text-[#74818E] hover:text-[#3A342E] hover:bg-[#C3D3DE]/30 active:bg-[#C3D3DE]/50 border border-[#C3D3DE]/60 rounded-lg transition-all gap-1.5 cursor-pointer shadow-2xs"
             >
               <RotateCcw size={14} className="text-[#74818E]" />
@@ -454,7 +454,7 @@ export default function Navbar({
                       className="w-full text-left px-4 py-2 text-xs font-medium text-[#74818E] hover:bg-[#F7F2E7] hover:text-[#3A342E] transition-colors flex items-center gap-2.5 cursor-pointer"
                     >
                       <RotateCcw size={14} className="text-[#74818E]" />
-                      重置測試資料 (預設 3 筆)
+                      重置測試資料
                     </button>
                   </div>
 
@@ -545,6 +545,20 @@ export default function Navbar({
               <Settings size={20} className={activeTab === 'settings' ? 'text-[#3A342E]' : 'text-[#74818E]'} />
               <span>群組設定</span>
             </button>
+            
+            {/* 新增tablet & mobile 「重製資料」button */}
+            <div className="pt-2 border-t border-[#C3D3DE]/40">
+              <button
+                type="button"
+                id="mobile-nav-reset-data"
+                onClick={handleResetDataClick}
+                className="flex items-center gap-3 w-full px-3.5 py-2.5 text-base rounded-xl transition-colors cursor-pointer text-[#74818E] hover:text-[#3A342E] hover:bg-black/5 font-medium"
+              >
+                <RotateCcw size={20} className="text-[#74818E]" />
+                <span>重置資料</span>
+              </button>
+            </div>
+
           </div>
         </div>
 
