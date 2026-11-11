@@ -146,7 +146,7 @@ export default function AddExpenseModal({
   const [notes, setNotes] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('新增支出成功！');
-  const [toastType, setToastType] = useState<'success' | 'warning'>('success');
+  const [toastType, setToastType] = useState<'success' | 'warning' | 'snackbar'>('success');
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -186,6 +186,14 @@ export default function AddExpenseModal({
     };
   }, []);
 
+  const showFundSwitchSnackbar = () => {
+  setToastType('snackbar');
+  setToastMessage('公積金餘額不足，已切換為“一般支付”。');
+  setShowToast(true);
+  if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+  toastTimeoutRef.current = setTimeout(() => setShowToast(false), 4000);
+};
+
   // Explicit Reset helper: Only called on Cancel button or on initial load if needed
   const resetFormToDefault = () => {
     setName('');
@@ -208,6 +216,7 @@ export default function AddExpenseModal({
     if (!isNaN(num) && num > 0 && num > availablePoolBalance && paymentMode === 'reserve_fund') {
       // Auto-switch to personal advance when amount exceeds available pool balance
       setPaymentMode('advance_split');
+      showFundSwitchSnackbar();
     }
   };
 
@@ -221,6 +230,7 @@ export default function AddExpenseModal({
       const num = parseFloat(amount);
       if (!isNaN(num) && num > 0 && num > availablePoolBalance) {
         setPaymentMode('advance_split');
+        if (paymentMode === 'reserve_fund') showFundSwitchSnackbar();
       } else {
         setPaymentMode('reserve_fund');
       }
@@ -450,30 +460,44 @@ export default function AddExpenseModal({
         }`} 
       />
 
-      {/* Floating Success / Warning Toast */}
-      <div 
-        className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[60] max-w-[94vw] sm:max-w-lg pointer-events-none transition-all duration-300 ease-out ${
-          showToast 
-            ? 'opacity-100 translate-y-0 scale-100' 
-            : 'opacity-0 -translate-y-3 scale-95'
-        }`}
-      >
-        <div className={`px-4 py-2.5 rounded-2xl sm:rounded-full shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-medium ${
-          toastType === 'warning'
-            ? 'bg-[#FAF7EE] text-[#3A342E] border border-amber-300/90 ring-1 ring-amber-400/20 shadow-amber-900/5'
-            : 'bg-white text-[#3A342E] border border-[#8FB96C]/60'
-        }`}>
-          {toastType === 'warning' ? (
-            <AlertCircle size={18} className="text-amber-600 shrink-0" />
-          ) : (
-            <CheckCircle2 size={18} className="text-[#8FB96C] shrink-0" />
-          )}
-          <span className="leading-snug">{toastMessage}</span>
-          {toastType !== 'warning' && (
-            <span className="text-[#74818E] text-xs shrink-0 hidden sm:inline">・可繼續記帳</span>
-          )}
+            {/* Floating Success / Warning Toast */}
+      {toastType === 'snackbar' ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed left-1/2 bottom-24 sm:bottom-10 -translate-x-1/2 z-[60] w-max max-w-[calc(100vw-32px)] pointer-events-none transition-all duration-200 ease-out ${
+            showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+          }`}
+        >
+          <div className="rounded bg-[#322f35] px-4 py-3.5 text-sm text-[#f5eff7] shadow-lg">
+            {toastMessage}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div 
+          className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[60] max-w-[94vw] sm:max-w-lg pointer-events-none transition-all duration-300 ease-out ${
+            showToast 
+              ? 'opacity-100 translate-y-0 scale-100' 
+              : 'opacity-0 -translate-y-3 scale-95'
+          }`}
+        >
+          <div className={`px-4 py-2.5 rounded-2xl sm:rounded-full shadow-xl flex items-center gap-2.5 text-xs sm:text-sm font-medium ${
+            toastType === 'warning'
+              ? 'bg-[#FAF7EE] text-[#3A342E] border border-amber-300/90 ring-1 ring-amber-400/20 shadow-amber-900/5'
+              : 'bg-white text-[#3A342E] border border-[#8FB96C]/60'
+          }`}>
+            {toastType === 'warning' ? (
+              <AlertCircle size={18} className="text-amber-600 shrink-0" />
+            ) : (
+              <CheckCircle2 size={18} className="text-[#8FB96C] shrink-0" />
+            )}
+            <span className="leading-snug">{toastMessage}</span>
+            {toastType !== 'warning' && (
+              <span className="text-[#74818E] text-xs shrink-0 hidden sm:inline">・可繼續記帳</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal Card - Bottom Sheet on Mobile (<640px: rounded-t-2xl max-h-[90vh] h-auto, slide up/down), Dialog on Desktop (sm:rounded-2xl sm:max-h-[calc(100vh-32px)], scale/fade) */}
       <div style={{ height: 'fit-content', maxHeight: '100%' }} className={`relative bg-white w-full sm:max-w-[560px] max-h-[90vh] h-auto sm:max-h-[calc(100vh-32px)] rounded-t-2xl sm:rounded-2xl shadow-2xl border-t sm:border border-[#C3D3DE]/50 flex flex-col overflow-hidden z-10 transition-transform duration-200 ease-out sm:transition-all sm:duration-150 ${
