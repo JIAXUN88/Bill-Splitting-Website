@@ -465,8 +465,8 @@ export default function AddExpenseModal({
         <div
           role="status"
           aria-live="polite"
-          className={`fixed left-1/2 bottom-24 sm:bottom-auto sm:top-6 -translate-x-1/2 z-[60] w-max max-w-[calc(100vw-32px)] pointer-events-none transition-all duration-200 ease-out ${
-  showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 sm:-translate-y-2'
+          className={`fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] sm:top-6 -translate-x-1/2 z-[60] w-max max-w-[calc(100vw-32px)] pointer-events-none transition-all duration-200 ease-out ${
+  showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
 }`}
         >
           <div className="rounded bg-[#322f35] px-4 py-3.5 text-sm text-[#f5eff7] shadow-lg">
