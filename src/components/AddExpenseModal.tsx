@@ -286,6 +286,22 @@ export default function AddExpenseModal({
     }
   }, [isOpen]);
 
+  // 追蹤虛擬鍵盤造成的「可視區域平移量」，讓 snackbar 永遠貼在使用者看得到的最上方
+  const [vvOffsetTop, setVvOffsetTop] = useState(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVvOffsetTop(vv.offsetTop);
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
   const handleAnimatedClose = (afterClose?: () => void) => {
     setIsMountedAnimation(false);
     setTimeout(() => {
@@ -465,9 +481,10 @@ export default function AddExpenseModal({
         <div
           role="status"
           aria-live="polite"
-          className={`fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] sm:top-6 -translate-x-1/2 z-[60] w-max max-w-[calc(100vw-32px)] pointer-events-none transition-all duration-200 ease-out ${
-  showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-}`}
+          style={{ marginTop: vvOffsetTop }}
+          className={`fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] sm:top-6 -translate-x-1/2 z-[60] w-max max-w-[calc(100vw-32px)] pointer-events-none transition-[opacity,transform] duration-200 ease-out ${
+            showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+      }`}
         >
           <div className="rounded bg-[#322f35] px-4 py-3.5 text-sm text-[#f5eff7] shadow-lg">
             {toastMessage}
